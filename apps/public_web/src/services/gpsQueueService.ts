@@ -100,13 +100,17 @@ class GPSQueueService {
       return false;
     }
 
+    // Store activityId locally to prevent issues if service is stopped during sync
+    const activityId = this.currentActivityId;
+    const token = this.token;
+
     this.updateSyncStatus({
       isSyncing: true,
       lastSyncAttempt: new Date()
     });
 
     try {
-      const unsyncedPoints = await indexedDBService.getUnsyncedPoints(this.currentActivityId);
+      const unsyncedPoints = await indexedDBService.getUnsyncedPoints(activityId);
 
       if (unsyncedPoints.length === 0) {
         console.log('No unsynced points to upload');
@@ -150,7 +154,7 @@ class GPSQueueService {
 
       console.log(`Sync completed: ${successCount} successful, ${failureCount} failed`);
 
-      const remainingCount = await indexedDBService.getUnsyncedCount(this.currentActivityId);
+      const remainingCount = await indexedDBService.getUnsyncedCount(activityId);
 
       this.updateSyncStatus({
         isSyncing: false,

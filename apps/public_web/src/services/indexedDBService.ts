@@ -110,23 +110,35 @@ class IndexedDBService {
         return;
       }
 
+      // Validate activityId
+      if (!activityId || typeof activityId !== 'string') {
+        console.warn('Invalid activityId provided to getUnsyncedPoints:', activityId);
+        resolve([]);
+        return;
+      }
+
       const transaction = this.db.transaction([STORE_NAME], 'readonly');
       const store = transaction.objectStore(STORE_NAME);
       const index = store.index('activityIdAndSynced');
 
-      const request = index.getAll(IDBKeyRange.only([activityId, false]));
+      try {
+        const request = index.getAll(IDBKeyRange.only([activityId, false]));
 
-      request.onsuccess = () => {
-        const points = request.result as StoredGPSPoint[];
-        // Sort by createdAt to maintain order
-        points.sort((a, b) => a.createdAt - b.createdAt);
-        resolve(points);
-      };
+        request.onsuccess = () => {
+          const points = request.result as StoredGPSPoint[];
+          // Sort by createdAt to maintain order
+          points.sort((a, b) => a.createdAt - b.createdAt);
+          resolve(points);
+        };
 
-      request.onerror = () => {
-        console.error('Error getting unsynced points:', request.error);
-        reject(request.error);
-      };
+        request.onerror = () => {
+          console.error('Error getting unsynced points:', request.error);
+          reject(request.error);
+        };
+      } catch (error) {
+        console.error('Error creating IDBKeyRange:', error);
+        reject(error);
+      }
     });
   }
 
