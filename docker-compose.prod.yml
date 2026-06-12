@@ -33,7 +33,10 @@ services:
       - JwtSettings__Secret=${JWT_SECRET}
       - JwtSettings__Issuer=${JWT_ISSUER:-VeloPulse}
       - JwtSettings__Audience=${JWT_AUDIENCE:-VeloPulse}
-      - CORS__AllowedOrigins=${CORS_ORIGINS:-*}
+      - CORS__AllowedOrigins__0=http://localhost:8080
+      - CORS__AllowedOrigins__1=http://127.0.0.1:8080
+      - CORS__AllowedOrigins__2=http://localhost:5173
+      - CORS__AllowedOrigins__3=${CORS_ORIGINS}
     ports:
       - "5000:8080"
     depends_on:

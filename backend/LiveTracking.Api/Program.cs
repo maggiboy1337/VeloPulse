@@ -62,17 +62,14 @@ builder.Services.AddAuthentication(options =>
 builder.Services.AddAuthorization();
 
 // CORS (with SignalR support)
+var corsOrigins = builder.Configuration.GetSection("CORS:AllowedOrigins").Get<string[]>()
+    ?? new[] { "http://localhost:5173", "http://127.0.0.1:5173", "http://localhost:8080", "http://127.0.0.1:8080" };
+
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("AllowAll", policy =>
     {
-        policy.WithOrigins(
-                "http://localhost:5173", 
-                "http://127.0.0.1:5173",
-                "http://localhost:8080",  // User Dashboard
-                "http://127.0.0.1:8080",
-                "null"  // Allow file:// protocol for local HTML files
-               )
+        policy.WithOrigins(corsOrigins)
               .AllowAnyMethod()
               .AllowAnyHeader()
               .AllowCredentials(); // Required for SignalR
