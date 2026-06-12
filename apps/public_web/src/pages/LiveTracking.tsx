@@ -83,6 +83,7 @@ const LiveTracking: React.FC = () => {
   const startTimeRef = useRef<Date>(new Date());
   const maxSpeedRef = useRef<number>(0);
   const lastPointRef = useRef<GPSPoint | null>(null);
+  const lastUploadTimeRef = useRef<number>(0); // Timestamp of last backend upload
   const sendSnapshotRef = useRef(sendSnapshot);
 
   // Keep sendSnapshotRef up to date
@@ -264,21 +265,17 @@ const LiveTracking: React.FC = () => {
       });
 
       // Send to backend (with offline queue fallback)
-      try {
-        // Try direct upload first using ref to avoid re-renders
-        await sendSnapshotRef.current(id, {
-          timestamp: timestamp.toISOString(),
-          latitude,
-          longitude,
-          elevationMeters: newPoint.elevation,
-          speedKmh: newPoint.speed,
-          accuracyMeters: newPoint.accuracy
-        });
-      } catch (err) {
-        console.warn('Direct upload failed, queueing for offline sync:', err);
-        // Queue for offline sync
+      // Only upload every 10 seconds to reduce database load
+      const now = Date.now();
+      const timeSinceLastUpload = now - lastUploadTimeRef.current;
+      const shouldUpload = timeSinceLastUpload >= 10000; // 10 seconds
+
+      if (shouldUpload) {
+        lastUploadTimeRef.current = now;
+
         try {
-          await gpsQueueService.enqueue(id, {
+          // Try direct upload first using ref to avoid re-renders
+          await sendSnapshotRef.current(id, {
             timestamp: timestamp.toISOString(),
             latitude,
             longitude,
@@ -286,9 +283,25 @@ const LiveTracking: React.FC = () => {
             speedKmh: newPoint.speed,
             accuracyMeters: newPoint.accuracy
           });
-        } catch (queueErr) {
-          console.error('Failed to queue GPS point:', queueErr);
+          console.log('GPS point uploaded to backend');
+        } catch (err) {
+          console.warn('Direct upload failed, queueing for offline sync:', err);
+          // Queue for offline sync
+          try {
+            await gpsQueueService.enqueue(id, {
+              timestamp: timestamp.toISOString(),
+              latitude,
+              longitude,
+              elevationMeters: newPoint.elevation,
+              speedKmh: newPoint.speed,
+              accuracyMeters: newPoint.accuracy
+            });
+          } catch (queueErr) {
+            console.error('Failed to queue GPS point:', queueErr);
+          }
         }
+      } else {
+        console.log(`Skipping upload - ${(10 - timeSinceLastUpload / 1000).toFixed(1)}s until next upload`);
       }
     };
 
