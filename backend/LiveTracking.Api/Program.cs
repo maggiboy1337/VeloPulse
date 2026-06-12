@@ -74,11 +74,28 @@ var corsOrigins = new List<string>
 // Add configured origins if available
 if (corsOriginsFromConfig != null && corsOriginsFromConfig.Length > 0)
 {
-    corsOrigins.AddRange(corsOriginsFromConfig);
-    Console.WriteLine($"Loaded {corsOriginsFromConfig.Length} CORS origins from configuration");
+    foreach (var origin in corsOriginsFromConfig)
+    {
+        // Split comma-separated origins (in case environment variable contains multiple URLs)
+        if (origin.Contains(','))
+        {
+            var splitOrigins = origin.Split(',', StringSplitOptions.RemoveEmptyEntries)
+                                     .Select(o => o.Trim())
+                                     .Where(o => !string.IsNullOrWhiteSpace(o));
+            corsOrigins.AddRange(splitOrigins);
+        }
+        else if (!string.IsNullOrWhiteSpace(origin))
+        {
+            corsOrigins.Add(origin.Trim());
+        }
+    }
+    Console.WriteLine($"Loaded {corsOriginsFromConfig.Length} CORS origin entries from configuration");
 }
 
-Console.WriteLine($"CORS Policy 'AllowAll' configured with {corsOrigins.Count} origins:");
+// Remove duplicates
+corsOrigins = corsOrigins.Distinct().ToList();
+
+Console.WriteLine($"CORS Policy 'AllowAll' configured with {corsOrigins.Count} unique origins:");
 foreach (var origin in corsOrigins)
 {
     Console.WriteLine($"  - {origin}");
