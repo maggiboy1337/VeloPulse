@@ -62,14 +62,33 @@ builder.Services.AddAuthentication(options =>
 builder.Services.AddAuthorization();
 
 // CORS (with SignalR support)
-var corsOrigins = builder.Configuration.GetSection("CORS:AllowedOrigins").Get<string[]>()
-    ?? new[] { "http://localhost:5173", "http://127.0.0.1:5173", "http://localhost:8080", "http://127.0.0.1:8080" };
+var corsOriginsFromConfig = builder.Configuration.GetSection("CORS:AllowedOrigins").Get<string[]>();
+var corsOrigins = new List<string>
+{
+    "http://localhost:5173",
+    "http://127.0.0.1:5173",
+    "http://localhost:8080",
+    "http://127.0.0.1:8080"
+};
+
+// Add configured origins if available
+if (corsOriginsFromConfig != null && corsOriginsFromConfig.Length > 0)
+{
+    corsOrigins.AddRange(corsOriginsFromConfig);
+    Console.WriteLine($"Loaded {corsOriginsFromConfig.Length} CORS origins from configuration");
+}
+
+Console.WriteLine($"CORS Policy 'AllowAll' configured with {corsOrigins.Count} origins:");
+foreach (var origin in corsOrigins)
+{
+    Console.WriteLine($"  - {origin}");
+}
 
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("AllowAll", policy =>
     {
-        policy.WithOrigins(corsOrigins)
+        policy.WithOrigins(corsOrigins.ToArray())
               .AllowAnyMethod()
               .AllowAnyHeader()
               .AllowCredentials(); // Required for SignalR
