@@ -69,6 +69,7 @@ const LiveTracking: React.FC = () => {
   const [isTracking, setIsTracking] = useState(true);
   const [isPaused, setIsPaused] = useState(false);
   const [error, setError] = useState<string>('');
+  const [gpsPermissionDenied, setGpsPermissionDenied] = useState(false);
   const [syncStatus, setSyncStatus] = useState<SyncStatus | null>(null);
   const [stats, setStats] = useState({
     distance: 0,
@@ -183,12 +184,24 @@ const LiveTracking: React.FC = () => {
 
   // GPS tracking
   useEffect(() => {
-    if (!isTracking || !id) return;
+    if (!isTracking || !id) {
+      console.log('GPS tracking skipped - isTracking:', isTracking, 'id:', id);
+      return;
+    }
 
     if (!navigator.geolocation) {
       setError('GPS wird von diesem Gerät nicht unterstützt');
       return;
     }
+
+    // Check if running on HTTPS (required by most modern browsers for geolocation)
+    if (window.location.protocol === 'http:' && window.location.hostname !== 'localhost') {
+      console.warn('Geolocation may not work on non-HTTPS sites');
+      setError('GPS funktioniert möglicherweise nur über HTTPS. Bitte verwenden Sie eine sichere Verbindung.');
+      return;
+    }
+
+    console.log('Starting GPS tracking for activity:', id);
 
     const handlePosition = async (position: GeolocationPosition) => {
       const { latitude, longitude, altitude, speed, accuracy } = position.coords;
@@ -275,18 +288,27 @@ const LiveTracking: React.FC = () => {
 
     const handleError = (error: GeolocationPositionError) => {
       console.error('GPS error:', error);
+      let errorMessage = '';
       switch (error.code) {
         case error.PERMISSION_DENIED:
-          setError('GPS-Berechtigung verweigert. Bitte erlauben Sie den Standortzugriff.');
+          errorMessage = 'GPS-Berechtigung verweigert. Bitte erlauben Sie den Standortzugriff in Ihren Browser-Einstellungen.';
+          console.error('PERMISSION_DENIED: User denied geolocation permission');
+          setGpsPermissionDenied(true);
           break;
         case error.POSITION_UNAVAILABLE:
-          setError('GPS-Position nicht verfügbar. Bitte aktivieren Sie GPS.');
+          errorMessage = 'GPS-Position nicht verfügbar. Bitte aktivieren Sie GPS.';
+          console.error('POSITION_UNAVAILABLE: GPS position unavailable');
           break;
         case error.TIMEOUT:
-          setError('GPS-Timeout. Versuche erneut...');
-          break;
+          errorMessage = 'GPS-Timeout. Versuche erneut...';
+          console.error('TIMEOUT: GPS request timed out');
+          // Don't set error for timeout, it will retry
+          return;
       }
+      setError(errorMessage);
     };
+
+    console.log('Calling navigator.geolocation.watchPosition...');
 
     // Start watching position
     watchIdRef.current = navigator.geolocation.watchPosition(
@@ -299,10 +321,14 @@ const LiveTracking: React.FC = () => {
       }
     );
 
+    console.log('GPS watchPosition started with id:', watchIdRef.current);
+
     // Cleanup
     return () => {
       if (watchIdRef.current !== null) {
+        console.log('Stopping GPS tracking, watch id:', watchIdRef.current);
         navigator.geolocation.clearWatch(watchIdRef.current);
+        watchIdRef.current = null;
       }
     };
   }, [isTracking, id, sendSnapshot]);
@@ -353,7 +379,7 @@ const LiveTracking: React.FC = () => {
   // Handle stop
   const handleStop = async () => {
     if (!id) return;
-    
+
     if (!window.confirm('Möchten Sie die Aktivität wirklich beenden?')) {
       return;
     }
@@ -366,6 +392,34 @@ const LiveTracking: React.FC = () => {
       setError('Fehler beim Beenden der Aktivität');
       console.error(err);
     }
+  };
+
+  // Request GPS permission
+  const handleRequestGpsPermission = () => {
+    console.log('Manually requesting GPS permission...');
+    setError('');
+    setGpsPermissionDenied(false);
+
+    // Try to get position once to trigger permission prompt
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        console.log('GPS permission granted!', position);
+        setCurrentPosition([position.coords.latitude, position.coords.longitude]);
+        // Restart tracking
+        setIsTracking(false);
+        setTimeout(() => setIsTracking(true), 100);
+      },
+      (error) => {
+        console.error('GPS permission denied again:', error);
+        setGpsPermissionDenied(true);
+        setError('GPS-Berechtigung verweigert. Bitte erlauben Sie den Standortzugriff.');
+      },
+      {
+        enableHighAccuracy: true,
+        timeout: 10000,
+        maximumAge: 0
+      }
+    );
   };
 
   // Prepare polyline points for map
@@ -396,6 +450,15 @@ const LiveTracking: React.FC = () => {
       {error && (
         <div className="error-banner">
           {error}
+          {gpsPermissionDenied && (
+            <button 
+              className="btn-retry-gps" 
+              onClick={handleRequestGpsPermission}
+              style={{ marginLeft: '10px', padding: '5px 10px', fontSize: '0.9em' }}
+            >
+              🔄 Nochmal versuchen
+            </button>
+          )}
         </div>
       )}
 
