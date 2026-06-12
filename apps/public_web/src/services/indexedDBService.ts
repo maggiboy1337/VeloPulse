@@ -117,23 +117,24 @@ class IndexedDBService {
         return;
       }
 
-      const transaction = this.db.transaction([STORE_NAME], 'readonly');
-      const store = transaction.objectStore(STORE_NAME);
-      const index = store.index('activityIdAndSynced');
-
       try {
-        // Create key with explicit validation
-        const key = [activityId, false];
-        console.log('Creating IDBKeyRange with key:', key);
+        const transaction = this.db.transaction([STORE_NAME], 'readonly');
+        const store = transaction.objectStore(STORE_NAME);
+        const index = store.index('activityId');
 
-        const request = index.getAll(IDBKeyRange.only(key));
+        console.log('Querying IndexedDB for activityId:', activityId);
+
+        // Use simple activityId index and filter client-side
+        const request = index.getAll(IDBKeyRange.only(activityId));
 
         request.onsuccess = () => {
-          const points = request.result as StoredGPSPoint[];
+          const allPoints = request.result as StoredGPSPoint[];
+          // Filter for unsynced points client-side
+          const unsyncedPoints = allPoints.filter(p => !p.synced);
           // Sort by createdAt to maintain order
-          points.sort((a, b) => a.createdAt - b.createdAt);
-          console.log(`Found ${points.length} unsynced points for activity ${activityId}`);
-          resolve(points);
+          unsyncedPoints.sort((a, b) => a.createdAt - b.createdAt);
+          console.log(`Found ${unsyncedPoints.length} unsynced points (out of ${allPoints.length} total) for activity ${activityId}`);
+          resolve(unsyncedPoints);
         };
 
         request.onerror = () => {
@@ -142,7 +143,7 @@ class IndexedDBService {
           resolve([]);
         };
       } catch (error) {
-        console.error('Error creating IDBKeyRange:', error, 'activityId:', activityId);
+        console.error('Error querying IndexedDB:', error, 'activityId:', activityId);
         // Return empty array instead of rejecting
         resolve([]);
       }
