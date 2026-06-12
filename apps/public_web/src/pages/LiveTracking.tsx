@@ -83,6 +83,12 @@ const LiveTracking: React.FC = () => {
   const startTimeRef = useRef<Date>(new Date());
   const maxSpeedRef = useRef<number>(0);
   const lastPointRef = useRef<GPSPoint | null>(null);
+  const sendSnapshotRef = useRef(sendSnapshot);
+
+  // Keep sendSnapshotRef up to date
+  useEffect(() => {
+    sendSnapshotRef.current = sendSnapshot;
+  }, [sendSnapshot]);
 
   // Format time as HH:MM:SS
   const formatDuration = (seconds: number): string => {
@@ -259,8 +265,8 @@ const LiveTracking: React.FC = () => {
 
       // Send to backend (with offline queue fallback)
       try {
-        // Try direct upload first
-        await sendSnapshot(id, {
+        // Try direct upload first using ref to avoid re-renders
+        await sendSnapshotRef.current(id, {
           timestamp: timestamp.toISOString(),
           latitude,
           longitude,
@@ -331,7 +337,7 @@ const LiveTracking: React.FC = () => {
         watchIdRef.current = null;
       }
     };
-  }, [isTracking, id, sendSnapshot]);
+  }, [isTracking, id]); // Removed sendSnapshot from dependencies to prevent re-renders
 
   // Update duration every second
   useEffect(() => {

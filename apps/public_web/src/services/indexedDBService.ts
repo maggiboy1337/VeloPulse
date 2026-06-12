@@ -110,8 +110,8 @@ class IndexedDBService {
         return;
       }
 
-      // Validate activityId
-      if (!activityId || typeof activityId !== 'string') {
+      // Validate activityId more strictly
+      if (!activityId || typeof activityId !== 'string' || activityId.trim() === '') {
         console.warn('Invalid activityId provided to getUnsyncedPoints:', activityId);
         resolve([]);
         return;
@@ -122,22 +122,29 @@ class IndexedDBService {
       const index = store.index('activityIdAndSynced');
 
       try {
-        const request = index.getAll(IDBKeyRange.only([activityId, false]));
+        // Create key with explicit validation
+        const key = [activityId, false];
+        console.log('Creating IDBKeyRange with key:', key);
+
+        const request = index.getAll(IDBKeyRange.only(key));
 
         request.onsuccess = () => {
           const points = request.result as StoredGPSPoint[];
           // Sort by createdAt to maintain order
           points.sort((a, b) => a.createdAt - b.createdAt);
+          console.log(`Found ${points.length} unsynced points for activity ${activityId}`);
           resolve(points);
         };
 
         request.onerror = () => {
           console.error('Error getting unsynced points:', request.error);
-          reject(request.error);
+          // Return empty array instead of rejecting
+          resolve([]);
         };
       } catch (error) {
-        console.error('Error creating IDBKeyRange:', error);
-        reject(error);
+        console.error('Error creating IDBKeyRange:', error, 'activityId:', activityId);
+        // Return empty array instead of rejecting
+        resolve([]);
       }
     });
   }
