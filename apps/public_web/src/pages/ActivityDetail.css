@@ -1,0 +1,267 @@
+.activity-detail {
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+/* Header */
+.detail-header {
+  margin-bottom: 2rem;
+}
+
+.btn-back {
+  background: #f1f5f9;
+  border: 1px solid #e2e8f0;
+  padding: 0.5rem 1rem;
+  border-radius: 8px;
+  cursor: pointer;
+  font-weight: 500;
+  color: #475569;
+  transition: all 0.2s;
+  margin-bottom: 1rem;
+}
+
+.btn-back:hover {
+  background: #e2e8f0;
+  transform: translateX(-2px);
+}
+
+.detail-header h1 {
+  margin: 0 0 0.5rem 0;
+  font-size: 2rem;
+  color: #1e293b;
+  font-weight: 600;
+}
+
+.activity-date {
+  margin: 0;
+  color: #64748b;
+  font-size: 1rem;
+}
+
+/* Loading & Error States */
+.loading-state,
+.error-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 400px;
+  gap: 1rem;
+}
+
+.spinner {
+  width: 48px;
+  height: 48px;
+  border: 4px solid #e2e8f0;
+  border-top-color: #667eea;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.error-icon {
+  font-size: 3rem;
+}
+
+.error-state h2 {
+  margin: 0;
+  color: #ef4444;
+}
+
+/* Stats Grid */
+.stats-grid-detail {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 1rem;
+  margin-bottom: 2rem;
+}
+
+.stat-card-detail {
+  background: white;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 1.25rem;
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+  transition: all 0.2s;
+}
+
+.stat-card-detail:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+}
+
+.stat-card-detail .stat-icon {
+  font-size: 2rem;
+  opacity: 0.8;
+}
+
+.stat-card-detail > div {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.stat-card-detail .stat-label {
+  font-size: 0.75rem;
+  color: #64748b;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.stat-card-detail .stat-value {
+  font-size: 1.25rem;
+  color: #1e293b;
+  font-weight: 700;
+}
+
+.stat-card-detail.route-card {
+  grid-column: span 2;
+  background: #f0f4ff;
+  border-color: #c7d2fe;
+}
+
+.stat-card-detail.route-card .stat-icon {
+  font-size: 2.5rem;
+}
+
+.stat-card-detail.route-card .stat-value {
+  color: #4f46e5;
+}
+
+/* Map Section */
+.map-section-detail {
+  margin-bottom: 2rem;
+}
+
+.map-section-detail h2 {
+  margin: 0 0 1rem 0;
+  font-size: 1.5rem;
+  color: #1e293b;
+  font-weight: 600;
+}
+
+.map-container-detail {
+  height: 500px;
+  border-radius: 16px;
+  overflow: hidden;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  border: 1px solid #e2e8f0;
+}
+
+/* No GPS Message */
+.no-gps-message {
+  background: white;
+  border: 2px dashed #e2e8f0;
+  border-radius: 16px;
+  padding: 4rem 2rem;
+  text-align: center;
+  margin-bottom: 2rem;
+}
+
+.no-gps-icon {
+  font-size: 4rem;
+  display: block;
+  margin-bottom: 1rem;
+  opacity: 0.5;
+}
+
+.no-gps-message h3 {
+  margin: 0 0 0.5rem 0;
+  font-size: 1.5rem;
+  color: #1e293b;
+}
+
+.no-gps-message p {
+  margin: 0;
+  color: #64748b;
+  font-size: 1rem;
+}
+
+/* Buttons */
+.btn {
+  padding: 0.75rem 1.5rem;
+  border: none;
+  border-radius: 8px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+  font-size: 1rem;
+}
+
+.btn-primary {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+}
+
+.btn-primary:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .activity-detail {
+    padding: 0;
+  }
+
+  .detail-header h1 {
+    font-size: 1.5rem;
+  }
+
+  .stats-grid-detail {
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 0.75rem;
+  }
+
+  .stat-card-detail {
+    padding: 1rem;
+    flex-direction: column;
+    text-align: center;
+  }
+
+  .stat-card-detail .stat-icon {
+    font-size: 1.75rem;
+  }
+
+  .stat-card-detail .stat-value {
+    font-size: 1.125rem;
+  }
+
+  .stat-card-detail.route-card {
+    grid-column: span 1;
+  }
+
+  .map-container-detail {
+    height: 400px;
+  }
+
+  .no-gps-message {
+    padding: 2rem 1.5rem;
+  }
+
+  .no-gps-icon {
+    font-size: 3rem;
+  }
+}
+
+@media (max-width: 480px) {
+  .detail-header h1 {
+    font-size: 1.25rem;
+  }
+
+  .stats-grid-detail {
+    grid-template-columns: 1fr;
+  }
+
+  .map-container-detail {
+    height: 300px;
+    border-radius: 12px;
+  }
+}

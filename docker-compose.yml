@@ -29,11 +29,30 @@ services:
       - ASPNETCORE_ENVIRONMENT=Development
       - ConnectionStrings__DefaultConnection=Host=postgres;Database=livetracking;Username=postgres;Password=postgres
       - ASPNETCORE_URLS=http://+:8080
+      - Jwt__Secret=your-super-secret-jwt-key-min-32-chars-long-12345678
+      - Jwt__Issuer=VeloPulse
+      - Jwt__Audience=VeloPulse
+      - Jwt__ExpirationMinutes=60
     ports:
       - "5000:8080"
     depends_on:
       postgres:
         condition: service_healthy
+    networks:
+      - livetracking
+
+  frontend:
+    build:
+      context: ./apps/public_web
+      dockerfile: Dockerfile.prod
+      args:
+        - VITE_API_URL=http://localhost:8080
+        - VITE_SIGNALR_HUB_URL=http://localhost:8080/hubs/live-tracking
+    container_name: livetracking-frontend
+    ports:
+      - "8080:80"
+    depends_on:
+      - backend
     networks:
       - livetracking
 

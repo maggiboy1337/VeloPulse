@@ -51,6 +51,52 @@ public class ActivitiesController : ControllerBase
         ));
     }
 
+    [HttpGet]
+    public async Task<ActionResult<List<ActivityDto>>> GetActivities(
+        [FromQuery] string? status = null,
+        [FromQuery] int? limit = null)
+    {
+        var userId = Guid.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
+
+        var query = _context.Activities
+            .Include(a => a.Route)
+            .Where(a => a.UserId == userId);
+
+        // Filter by status if provided
+        if (!string.IsNullOrEmpty(status))
+        {
+            if (Enum.TryParse<ActivityStatus>(status, true, out var statusEnum))
+            {
+                query = query.Where(a => a.Status == statusEnum);
+            }
+        }
+
+        // Order by most recent first
+        query = query.OrderByDescending(a => a.StartedAt);
+
+        // Limit results if specified
+        if (limit.HasValue && limit.Value > 0)
+        {
+            query = query.Take(limit.Value);
+        }
+
+        var activities = await query.ToListAsync();
+
+        var result = activities.Select(a => new ActivityDto(
+            a.Id,
+            a.Name,
+            a.Status.ToString(),
+            a.StartedAt,
+            a.FinishedAt,
+            a.TotalDistanceMeters,
+            a.AverageSpeedKmh,
+            a.RouteId,
+            a.Route?.Name
+        )).ToList();
+
+        return Ok(result);
+    }
+
     [HttpGet("{id}")]
     public async Task<ActionResult<ActivityDto>> GetActivity(Guid id)
     {
@@ -71,6 +117,57 @@ public class ActivitiesController : ControllerBase
             activity.AverageSpeedKmh,
             activity.RouteId,
             activity.Route?.Name
+        ));
+    }
+
+    [HttpGet("{id}/details")]
+    public async Task<ActionResult<ActivityDetailDto>> GetActivityDetails(Guid id)
+    {
+        var userId = Guid.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
+        var activity = await _context.Activities
+            .Include(a => a.Route)
+            .Include(a => a.ActivityPoints.OrderBy(p => p.Timestamp))
+            .FirstOrDefaultAsync(a => a.Id == id && a.UserId == userId);
+
+        if (activity == null) return NotFound();
+
+        // Sample points if there are too many (max 1000 for performance)
+        var points = activity.ActivityPoints.ToList();
+        if (points.Count > 1000)
+        {
+            var samplingRate = (int)Math.Ceiling((double)points.Count / 1000);
+            points = points.Where((p, index) => index % samplingRate == 0 || index == points.Count - 1).ToList();
+        }
+
+        var pointDtos = points.Select(p => new ActivityPointDto(
+            p.Timestamp,
+            p.Latitude,
+            p.Longitude,
+            p.ElevationMeters,
+            p.SpeedKmh,
+            p.AccuracyMeters,
+            p.DistanceFromStartMeters
+        )).ToList();
+
+        var durationMinutes = activity.FinishedAt.HasValue 
+            ? (int)(activity.FinishedAt.Value - activity.StartedAt).TotalMinutes 
+            : (int)(DateTime.UtcNow - activity.StartedAt).TotalMinutes;
+
+        return Ok(new ActivityDetailDto(
+            activity.Id,
+            activity.Name ?? "Unbenannte Tour",
+            activity.Status.ToString(),
+            activity.StartedAt,
+            activity.FinishedAt,
+            activity.TotalDistanceMeters,
+            activity.AverageSpeedKmh,
+            activity.MaxSpeedKmh,
+            activity.AverageHeartRateBpm,
+            activity.MaxHeartRateBpm,
+            durationMinutes,
+            activity.RouteId,
+            activity.Route?.Name,
+            pointDtos
         ));
     }
 

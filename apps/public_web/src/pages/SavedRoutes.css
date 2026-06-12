@@ -1,0 +1,271 @@
+.saved-routes {
+  max-width: 1400px;
+  margin: 0 auto;
+}
+
+.page-header {
+  margin-bottom: 2rem;
+}
+
+.page-header h1 {
+  margin: 0 0 0.5rem 0;
+  font-size: 2rem;
+  color: #1e293b;
+  font-weight: 600;
+}
+
+.page-subtitle {
+  margin: 0;
+  color: #64748b;
+  font-size: 1rem;
+}
+
+/* Loading & Error States */
+.loading-state,
+.error-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 400px;
+  gap: 1rem;
+}
+
+.spinner {
+  width: 48px;
+  height: 48px;
+  border: 4px solid #e2e8f0;
+  border-top-color: #667eea;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.error-icon {
+  font-size: 3rem;
+}
+
+.error-state h2 {
+  margin: 0;
+  color: #ef4444;
+}
+
+/* Empty State */
+.empty-state-box {
+  background: white;
+  border-radius: 16px;
+  padding: 4rem 2rem;
+  text-align: center;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+  border: 2px dashed #e2e8f0;
+}
+
+.empty-icon {
+  font-size: 4rem;
+  margin-bottom: 1rem;
+}
+
+.empty-state-box h2 {
+  margin: 0 0 1rem 0;
+  font-size: 1.5rem;
+  color: #1e293b;
+}
+
+.empty-state-box p {
+  margin: 0 0 0.5rem 0;
+  color: #64748b;
+  font-size: 1rem;
+}
+
+.help-text {
+  font-size: 0.875rem;
+  color: #94a3b8;
+}
+
+/* Routes Grid */
+.routes-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+  gap: 1.5rem;
+}
+
+.route-card {
+  background: white;
+  border-radius: 16px;
+  padding: 1.5rem;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+  border: 1px solid #e2e8f0;
+  transition: all 0.3s;
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.route-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.12);
+  border-color: #667eea;
+}
+
+.route-card-header h3 {
+  margin: 0 0 0.5rem 0;
+  font-size: 1.25rem;
+  color: #1e293b;
+  font-weight: 600;
+}
+
+.route-description {
+  margin: 0;
+  color: #64748b;
+  font-size: 0.9375rem;
+  line-height: 1.5;
+}
+
+/* Route Stats Grid */
+.route-stats-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 1rem;
+}
+
+.route-stat {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.75rem;
+  background: #f8fafc;
+  border-radius: 8px;
+}
+
+.route-stat .stat-icon {
+  font-size: 1.5rem;
+}
+
+.route-stat > div {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.route-stat .stat-label {
+  font-size: 0.75rem;
+  color: #64748b;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.route-stat .stat-value {
+  font-size: 1rem;
+  color: #1e293b;
+  font-weight: 600;
+}
+
+/* Route Actions */
+.route-actions {
+  display: flex;
+  gap: 0.75rem;
+  margin-top: auto;
+}
+
+.btn {
+  padding: 0.75rem 1.5rem;
+  border: none;
+  border-radius: 8px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+  font-size: 0.9375rem;
+  flex: 1;
+}
+
+.btn-primary {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+}
+
+.btn-primary:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+}
+
+.btn-secondary {
+  background: #f1f5f9;
+  color: #475569;
+  border: 1px solid #e2e8f0;
+}
+
+.btn-secondary:hover {
+  background: #e2e8f0;
+  transform: translateY(-2px);
+}
+
+.btn-danger {
+  background: #fee2e2;
+  color: #dc2626;
+  border: 1px solid #fecaca;
+  flex: 0;
+}
+
+.btn-danger:hover {
+  background: #fecaca;
+  transform: translateY(-2px);
+}
+
+.btn-icon {
+  padding: 0.75rem;
+  min-width: 48px;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .saved-routes {
+    padding: 0;
+  }
+
+  .page-header h1 {
+    font-size: 1.5rem;
+  }
+
+  .routes-grid {
+    grid-template-columns: 1fr;
+    gap: 1rem;
+  }
+
+  .route-card {
+    padding: 1.25rem;
+  }
+
+  .route-stats-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .route-actions {
+    flex-direction: column;
+  }
+
+  .btn {
+    width: 100%;
+  }
+
+  .btn-icon {
+    width: auto;
+  }
+
+  .empty-state-box {
+    padding: 2rem 1.5rem;
+  }
+}
+
+@media (max-width: 480px) {
+  .page-header h1 {
+    font-size: 1.25rem;
+  }
+
+  .empty-icon {
+    font-size: 3rem;
+  }
+}
