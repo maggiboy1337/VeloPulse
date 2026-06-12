@@ -56,8 +56,6 @@ services:
       args:
         VITE_API_URL: ${VITE_API_URL}
         VITE_SIGNALR_HUB_URL: ${VITE_API_URL}/hubs/live-tracking
-        VITE_TILE_URL: https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png
-        VITE_TILE_ATTRIBUTION: © OpenStreetMap contributors
     container_name: velopulse-frontend
     ports:
       - "8080:80"

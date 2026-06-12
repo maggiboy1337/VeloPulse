@@ -6,13 +6,9 @@ WORKDIR /app
 # Build-Zeit Environment Variables
 ARG VITE_API_URL
 ARG VITE_SIGNALR_HUB_URL
-ARG VITE_TILE_URL
-ARG VITE_TILE_ATTRIBUTION
 
 ENV VITE_API_URL=${VITE_API_URL}
 ENV VITE_SIGNALR_HUB_URL=${VITE_SIGNALR_HUB_URL}
-ENV VITE_TILE_URL=${VITE_TILE_URL:-https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png}
-ENV VITE_TILE_ATTRIBUTION=${VITE_TILE_ATTRIBUTION:-© OpenStreetMap contributors}
 
 # Dependencies installieren
 COPY package*.json ./
