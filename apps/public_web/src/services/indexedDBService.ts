@@ -1,6 +1,6 @@
 // IndexedDB Service for offline GPS point storage
 const DB_NAME = 'VeloPulseDB';
-const DB_VERSION = 1;
+const DB_VERSION = 2; // Increased for migration from boolean to number
 const STORE_NAME = 'gpsPoints';
 
 export interface StoredGPSPoint {
@@ -15,7 +15,7 @@ export interface StoredGPSPoint {
   heartRateBpm?: number;
   cadenceRpm?: number;
   powerWatts?: number;
-  synced: boolean; // false = needs upload
+  synced: number; // 0 = needs upload, 1 = synced (changed from boolean for IndexedDB compatibility)
   attempts: number; // retry counter
   createdAt: number; // local timestamp for ordering
 }
@@ -45,8 +45,11 @@ class IndexedDBService {
 
       request.onupgradeneeded = (event) => {
         const db = (event.target as IDBOpenDBRequest).result;
+        const oldVersion = event.oldVersion;
 
-        // Create object store if it doesn't exist
+        console.log(`IndexedDB upgrade from version ${oldVersion} to ${DB_VERSION}`);
+
+        // Create object store if it doesn't exist (v1)
         if (!db.objectStoreNames.contains(STORE_NAME)) {
           const objectStore = db.createObjectStore(STORE_NAME, {
             keyPath: 'id',
@@ -60,6 +63,29 @@ class IndexedDBService {
           objectStore.createIndex('activityIdAndSynced', ['activityId', 'synced'], { unique: false });
 
           console.log('IndexedDB object store created');
+        }
+
+        // Migration from v1 to v2: Convert boolean synced to number
+        if (oldVersion < 2 && db.objectStoreNames.contains(STORE_NAME)) {
+          console.log('Migrating synced field from boolean to number...');
+          const transaction = (event.target as IDBOpenDBRequest).transaction!;
+          const objectStore = transaction.objectStore(STORE_NAME);
+
+          // Get all records and update them
+          const getAllRequest = objectStore.getAll();
+          getAllRequest.onsuccess = () => {
+            const allRecords = getAllRequest.result as any[];
+            console.log(`Migrating ${allRecords.length} records...`);
+
+            allRecords.forEach((record) => {
+              if (typeof record.synced === 'boolean') {
+                record.synced = record.synced ? 1 : 0;
+                objectStore.put(record);
+              }
+            });
+
+            console.log('Migration completed');
+          };
         }
       };
     });
@@ -82,7 +108,7 @@ class IndexedDBService {
 
       const pointWithMetadata: Omit<StoredGPSPoint, 'id'> = {
         ...point,
-        synced: false,
+        synced: 0, // 0 = needs upload (changed from false for IndexedDB compatibility)
         attempts: 0,
         createdAt: Date.now()
       };
@@ -120,21 +146,19 @@ class IndexedDBService {
       try {
         const transaction = this.db.transaction([STORE_NAME], 'readonly');
         const store = transaction.objectStore(STORE_NAME);
-        const index = store.index('activityId');
+        const index = store.index('activityIdAndSynced');
 
-        console.log('Querying IndexedDB for activityId:', activityId);
+        console.log('Querying IndexedDB for activityId:', activityId, 'with synced: 0');
 
-        // Use simple activityId index and filter client-side
-        const request = index.getAll(IDBKeyRange.only(activityId));
+        // Use compound index with numeric synced value (0 = unsynced)
+        const request = index.getAll(IDBKeyRange.only([activityId, 0]));
 
         request.onsuccess = () => {
-          const allPoints = request.result as StoredGPSPoint[];
-          // Filter for unsynced points client-side
-          const unsyncedPoints = allPoints.filter(p => !p.synced);
+          const points = request.result as StoredGPSPoint[];
           // Sort by createdAt to maintain order
-          unsyncedPoints.sort((a, b) => a.createdAt - b.createdAt);
-          console.log(`Found ${unsyncedPoints.length} unsynced points (out of ${allPoints.length} total) for activity ${activityId}`);
-          resolve(unsyncedPoints);
+          points.sort((a, b) => a.createdAt - b.createdAt);
+          console.log(`Found ${points.length} unsynced points for activity ${activityId}`);
+          resolve(points);
         };
 
         request.onerror = () => {
@@ -168,7 +192,7 @@ class IndexedDBService {
       getRequest.onsuccess = () => {
         const point = getRequest.result as StoredGPSPoint;
         if (point) {
-          point.synced = true;
+          point.synced = 1; // 1 = synced (changed from true for IndexedDB compatibility)
           const updateRequest = store.put(point);
 
           updateRequest.onsuccess = () => resolve();

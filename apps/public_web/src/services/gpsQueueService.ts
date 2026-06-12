@@ -25,19 +25,30 @@ class GPSQueueService {
   private syncInterval: number | null = null;
   private currentActivityId: string | null = null;
   private token: string | null = null;
+  private isStarted: boolean = false;
 
   // Start queue service for an activity
   start(activityId: string, token: string) {
+    // Prevent multiple starts for the same activity
+    if (this.isStarted && this.currentActivityId === activityId) {
+      console.log('GPS Queue Service already running for activity:', activityId);
+      return;
+    }
+
+    // Stop any existing service first
+    if (this.isStarted) {
+      console.log('Stopping existing GPS Queue Service before starting new one');
+      this.stop();
+    }
+
     this.currentActivityId = activityId;
     this.token = token;
+    this.isStarted = true;
 
     // Initial sync attempt
     this.syncNow();
 
     // Setup periodic sync every 30 seconds
-    if (this.syncInterval) {
-      clearInterval(this.syncInterval);
-    }
     this.syncInterval = window.setInterval(() => {
       this.syncNow();
     }, 30000); // 30 seconds
@@ -53,6 +64,7 @@ class GPSQueueService {
     }
     this.currentActivityId = null;
     this.token = null;
+    this.isStarted = false;
     console.log('GPS Queue Service stopped');
   }
 
