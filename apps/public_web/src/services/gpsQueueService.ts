@@ -102,7 +102,6 @@ class GPSQueueService {
 
     // Store activityId locally to prevent issues if service is stopped during sync
     const activityId = this.currentActivityId;
-    const token = this.token;
 
     this.updateSyncStatus({
       isSyncing: true,
