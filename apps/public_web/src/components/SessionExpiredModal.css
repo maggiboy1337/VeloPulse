@@ -1,0 +1,35 @@
+.session-expired-modal {
+  max-width: 400px;
+  text-align: center;
+}
+
+.session-expired-icon {
+  font-size: 4rem;
+  margin-bottom: 1rem;
+}
+
+.session-expired-modal h2 {
+  margin-bottom: 1rem;
+  color: #dc2626;
+}
+
+.session-expired-modal p {
+  margin-bottom: 0.5rem;
+  color: #64748b;
+}
+
+.session-expired-hint {
+  font-size: 0.875rem;
+  font-style: italic;
+  margin-bottom: 1.5rem;
+}
+
+.session-expired-actions {
+  display: flex;
+  gap: 1rem;
+  justify-content: center;
+}
+
+.session-expired-actions .btn {
+  flex: 1;
+}

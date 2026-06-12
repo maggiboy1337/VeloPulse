@@ -1,0 +1,71 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: velopulse-postgres
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-livetracking}
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - velopulse
+    restart: unless-stopped
+
+  backend:
+    build:
+      context: .
+      dockerfile: backend/LiveTracking.Api/Dockerfile
+    container_name: velopulse-backend
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Production
+      - ConnectionStrings__DefaultConnection=Host=postgres;Database=${POSTGRES_DB:-livetracking};Username=${POSTGRES_USER:-postgres};Password=${POSTGRES_PASSWORD}
+      - ASPNETCORE_URLS=http://+:8080
+      - JwtSettings__Secret=${JWT_SECRET}
+      - JwtSettings__Issuer=${JWT_ISSUER:-VeloPulse}
+      - JwtSettings__Audience=${JWT_AUDIENCE:-VeloPulse}
+      - CORS__AllowedOrigins=${CORS_ORIGINS:-*}
+    ports:
+      - "5000:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - velopulse
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  frontend:
+    build:
+      context: ./apps/public_web
+      dockerfile: Dockerfile.prod
+    container_name: velopulse-frontend
+    ports:
+      - "8080:80"
+    depends_on:
+      - backend
+    networks:
+      - velopulse
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+    driver: local
+
+networks:
+  velopulse:
+    driver: bridge

@@ -1,0 +1,417 @@
+import { useState, useEffect } from 'react';
+import { MapContainer, TileLayer, Marker, Popup, Polyline, useMap } from 'react-leaflet';
+import { Icon, LatLngExpression } from 'leaflet';
+import * as signalR from '@microsoft/signalr';
+import { PublicLiveSession } from './types';
+import { useAuth } from './contexts/AuthContext';
+import { AuthModal } from './components/AuthModal';
+import { ProfileModal } from './components/ProfileModal';
+import { Route } from './hooks/useRoutes';
+import { useRoutes } from './hooks/useRoutes';
+import { useActivities } from './hooks/useActivities';
+import 'leaflet/dist/leaflet.css';
+
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+const SIGNALR_HUB_URL = import.meta.env.VITE_SIGNALR_HUB_URL || 'http://localhost:5000/hubs/live-tracking';
+const TILE_URL = import.meta.env.VITE_TILE_URL || 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png';
+const TILE_ATTRIBUTION = import.meta.env.VITE_TILE_ATTRIBUTION || '© OpenStreetMap contributors';
+
+// Custom marker icons
+const markerIcon = new Icon({
+  iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-blue.png',
+  shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png',
+  iconSize: [25, 41],
+  iconAnchor: [12, 41],
+  popupAnchor: [1, -34],
+  shadowSize: [41, 41]
+});
+
+const selectedMarkerIcon = new Icon({
+  iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-red.png',
+  shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png',
+  iconSize: [25, 41],
+  iconAnchor: [12, 41],
+  popupAnchor: [1, -34],
+  shadowSize: [41, 41]
+});
+
+function MapUpdater({ selectedSession }: { selectedSession: PublicLiveSession | null }) {
+  const map = useMap();
+
+  useEffect(() => {
+    if (selectedSession?.currentSnapshot) {
+      map.setView(
+        [selectedSession.currentSnapshot.latitude, selectedSession.currentSnapshot.longitude],
+        13,
+        { animate: true }
+      );
+    }
+  }, [selectedSession, map]);
+
+  return null;
+}
+
+function MapBoundsUpdater({ sessions }: { sessions: PublicLiveSession[] }) {
+  const map = useMap();
+
+  useEffect(() => {
+    if (sessions.length > 0) {
+      const bounds: LatLngBoundsExpression = [];
+
+      sessions.forEach(session => {
+        if (session.currentSnapshot) {
+          bounds.push([session.currentSnapshot.latitude, session.currentSnapshot.longitude]);
+        } else if (session.routePoints && session.routePoints.length > 0) {
+          bounds.push([session.routePoints[0].latitude, session.routePoints[0].longitude]);
+        }
+      });
+
+      if (bounds.length > 0) {
+        map.fitBounds(bounds, { padding: [50, 50], maxZoom: 13 });
+      }
+    }
+  }, [sessions, map]);
+
+  return null;
+}
+
+function App() {
+  const [sessions, setSessions] = useState<PublicLiveSession[]>([]);
+  const [selectedSession, setSelectedSession] = useState<PublicLiveSession | null>(null);
+  const [connection, setConnection] = useState<signalR.HubConnection | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    fetchSessions();
+    setupSignalR();
+
+    return () => {
+      connection?.stop();
+    };
+  }, []);
+
+  const fetchSessions = async () => {
+    try {
+      setIsLoading(true);
+      setError(null);
+      const response = await fetch(`${API_URL}/api/public/live-sessions`);
+      if (!response.ok) throw new Error('Failed to fetch sessions');
+      const data = await response.json();
+
+      // Dedupliziere Sessions basierend auf publicSessionId
+      const uniqueSessions = data.reduce((acc: PublicLiveSession[], current: PublicLiveSession) => {
+        const exists = acc.find(s => s.publicSessionId === current.publicSessionId);
+        if (!exists) {
+          acc.push(current);
+        } else {
+          console.warn('Duplicate session found:', current.publicSessionId);
+        }
+        return acc;
+      }, []);
+
+      console.log('Fetched sessions:', uniqueSessions); // DEBUG: Zeige alle Sessions
+      console.log('Sessions without snapshot:', uniqueSessions.filter((s: any) => !s.currentSnapshot)); // DEBUG
+      console.log('Sessions with routes:', uniqueSessions.filter((s: any) => s.routePoints && s.routePoints.length > 0)); // DEBUG
+      uniqueSessions.forEach((s: any) => {
+        if (s.routePoints) {
+          console.log(`Session ${s.displayName}: ${s.routePoints.length} route points`);
+        } else {
+          console.log(`Session ${s.displayName}: NO route points`);
+        }
+      });
+      setSessions(uniqueSessions);
+    } catch (err) {
+      console.error('Error fetching sessions:', err);
+      setError('Verbindung zum Server fehlgeschlagen');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const setupSignalR = async () => {
+    const newConnection = new signalR.HubConnectionBuilder()
+      .withUrl(SIGNALR_HUB_URL)
+      .withAutomaticReconnect()
+      .build();
+
+    newConnection.on('LiveSessionStarted', (publicSessionId: string, sessionData: PublicLiveSession) => {
+      console.log('=== LiveSessionStarted ===');
+      console.log('Public Session ID:', publicSessionId);
+      console.log('Display Name:', sessionData.displayName);
+      console.log('Has currentSnapshot:', !!sessionData.currentSnapshot);
+      console.log('Route points count:', sessionData.routePoints?.length ?? 0);
+      console.log('Session data:', sessionData);
+      setSessions(prev => {
+        // Prüfe, ob Session bereits existiert (verhindert Duplikate)
+        const exists = prev.find(s => s.publicSessionId === publicSessionId);
+        if (exists) {
+          console.warn('⚠️ Session already exists, skipping duplicate:', publicSessionId);
+          return prev;
+        }
+
+        const newSessions = [...prev, sessionData];
+        console.log('Total sessions after add:', newSessions.length);
+        console.log('Sessions with snapshot:', newSessions.filter(s => s.currentSnapshot).length);
+        return newSessions;
+      });
+    });
+
+    newConnection.on('LiveSessionUpdated', (publicSessionId: string, snapshotData: any) => {
+      console.log('=== LiveSessionUpdated ===');
+      console.log('Public Session ID:', publicSessionId);
+      console.log('Latitude:', snapshotData.latitude);
+      console.log('Longitude:', snapshotData.longitude);
+      console.log('Speed:', snapshotData.speedKmh);
+      console.log('Heart Rate:', snapshotData.heartRateBpm);
+
+      setSessions(prev => {
+        console.log('Current sessions count:', prev.length);
+        const sessionExists = prev.find(s => s.publicSessionId === publicSessionId);
+        console.log('Session exists in list:', !!sessionExists);
+
+        if (!sessionExists) {
+          console.warn('⚠️ Received update for unknown session:', publicSessionId);
+        }
+
+        const updated = prev.map(session => 
+          session.publicSessionId === publicSessionId
+            ? { ...session, currentSnapshot: snapshotData }
+            : session
+        );
+        console.log('Sessions after update:', updated.length, 'with snapshot:', updated.filter(s => s.currentSnapshot).length);
+        return updated;
+      });
+    });
+
+    newConnection.on('LiveSessionEnded', (publicSessionId: string) => {
+      console.log('Session ended:', publicSessionId);
+      setSessions(prev => prev.filter(s => s.publicSessionId !== publicSessionId));
+      if (selectedSession?.publicSessionId === publicSessionId) {
+        setSelectedSession(null);
+      }
+    });
+
+    try {
+      await newConnection.start();
+      console.log('SignalR connected');
+      setConnection(newConnection);
+    } catch (err) {
+      console.error('SignalR connection error:', err);
+    }
+  };
+
+  const formatTime = (dateString: string) => {
+    const date = new Date(dateString);
+    const now = new Date();
+    const diffMs = now.getTime() - date.getTime();
+    const diffMins = Math.floor(diffMs / 60000);
+    
+    if (diffMins < 1) return 'Gerade eben';
+    if (diffMins < 60) return `vor ${diffMins} Min.`;
+    return `vor ${Math.floor(diffMins / 60)} Std.`;
+  };
+
+  const formatDistance = (meters: number) => {
+    if (meters < 1000) return `${Math.round(meters)} m`;
+    return `${(meters / 1000).toFixed(1)} km`;
+  };
+
+  const getInitials = (name: string) => {
+    return name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
+  };
+
+  const defaultCenter: LatLngExpression = [51.1657, 10.4515]; // Germany center
+
+  return (
+    <div className="app">
+      <header className="header">
+        <h1>🚴 VeloPulse Live Tracking</h1>
+      </header>
+
+      <main className="main-content">
+        <div className="map-container">
+          <MapContainer
+            center={defaultCenter}
+            zoom={6}
+            style={{ height: '100%', width: '100%' }}
+            zoomControl={true}
+          >
+            <TileLayer
+              attribution={TILE_ATTRIBUTION}
+              url={TILE_URL}
+            />
+            
+            {sessions.map(session => {
+              // Nur Marker anzeigen, wenn GPS-Daten vorhanden sind
+              if (!session.currentSnapshot) return null;
+
+              const position: LatLngExpression = [
+                session.currentSnapshot.latitude,
+                session.currentSnapshot.longitude
+              ];
+
+              const isSelected = selectedSession?.publicSessionId === session.publicSessionId;
+
+              return (
+                <Marker
+                  key={session.publicSessionId}
+                  position={position}
+                  icon={isSelected ? selectedMarkerIcon : markerIcon}
+                  eventHandlers={{
+                    click: () => setSelectedSession(session)
+                  }}
+                >
+                  <Popup>
+                    <strong>{session.displayName}</strong>
+                    <br />
+                    {session.currentSnapshot.speedKmh && (
+                      <>🏃 {session.currentSnapshot.speedKmh.toFixed(1)} km/h<br /></>
+                    )}
+                    {session.currentSnapshot.heartRateBpm && (
+                      <>❤️ {session.currentSnapshot.heartRateBpm} bpm</>
+                    )}
+                  </Popup>
+                </Marker>
+              );
+            })}
+
+            {/* Routen für ALLE Sessions anzeigen */}
+            {sessions.map(session => {
+              if (!session.routePoints || session.routePoints.length === 0) return null;
+
+              const isSelected = selectedSession?.publicSessionId === session.publicSessionId;
+
+              return (
+                <Polyline
+                  key={`route-${session.publicSessionId}`}
+                  positions={session.routePoints.map(p => [p.latitude, p.longitude] as LatLngExpression)}
+                  color={isSelected ? "#8b5cf6" : "#06b6d4"}
+                  weight={isSelected ? 4 : 2}
+                  opacity={isSelected ? 0.9 : 0.4}
+                  dashArray={isSelected ? undefined : "5, 10"}
+                />
+              );
+            })}
+
+            <MapUpdater selectedSession={selectedSession} />
+            <MapBoundsUpdater sessions={sessions} />
+          </MapContainer>
+        </div>
+
+        <aside className="sidebar" role="complementary" aria-label="Aktive Sessions">
+          <h2>Live unterwegs ({sessions.filter(s => s.currentSnapshot).length})</h2>
+
+          {isLoading && (
+            <div className="empty-state">
+              <div className="empty-state-icon">⏳</div>
+              <p>Lade Daten...</p>
+            </div>
+          )}
+
+          {error && (
+            <div className="empty-state">
+              <div className="empty-state-icon">⚠️</div>
+              <h3>Verbindungsfehler</h3>
+              <p>{error}</p>
+              <button onClick={fetchSessions} style={{ marginTop: '1rem' }}>
+                Erneut versuchen
+              </button>
+            </div>
+          )}
+
+          {!isLoading && !error && sessions.length === 0 && (
+            <div className="empty-state">
+              <div className="empty-state-icon">🚴</div>
+              <h3>Niemand live unterwegs</h3>
+              <p>Aktuell ist keine Person mit aktiviertem Live-Tracking unterwegs.</p>
+            </div>
+          )}
+
+          {sessions.filter(session => session.currentSnapshot).map(session => (
+            <div
+              key={session.publicSessionId}
+              className={`session-card ${selectedSession?.publicSessionId === session.publicSessionId ? 'active' : ''}`}
+              onClick={() => setSelectedSession(session)}
+              role="button"
+              tabIndex={0}
+              aria-label={`Session von ${session.displayName}`}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  setSelectedSession(session);
+                }
+              }}
+            >
+              <div className="session-header">
+                <div className="profile-image" aria-hidden="true">
+                  {session.profileImageUrl ? (
+                    <img src={session.profileImageUrl} alt="" />
+                  ) : (
+                    getInitials(session.displayName)
+                  )}
+                </div>
+                <div>
+                  <div className="session-name">{session.displayName}</div>
+                  <div className="session-time">
+                    <span className="status-badge live">● Live</span>
+                    {' '}·{' '}
+                    {formatTime(session.startedAt)}
+                  </div>
+                </div>
+              </div>
+
+              {session.currentSnapshot && (
+                <div className="session-stats">
+                  {session.currentSnapshot.speedKmh !== undefined && (
+                    <div className="stat-item">
+                      <span className="stat-label">Geschwindigkeit</span>
+                      <span className="stat-value">
+                        {session.currentSnapshot.speedKmh.toFixed(1)} km/h
+                      </span>
+                    </div>
+                  )}
+                  
+                  {session.currentSnapshot.heartRateBpm !== undefined && (
+                    <div className="stat-item">
+                      <span className="stat-label">Herzfrequenz</span>
+                      <span className="stat-value">
+                        {session.currentSnapshot.heartRateBpm} bpm
+                      </span>
+                    </div>
+                  )}
+                  
+                  <div className="stat-item">
+                    <span className="stat-label">Zurückgelegt</span>
+                    <span className="stat-value">
+                      {formatDistance(session.currentSnapshot.distanceCompletedMeters)}
+                    </span>
+                  </div>
+                  
+                  {session.currentSnapshot.distanceRemainingMeters !== undefined && (
+                    <div className="stat-item">
+                      <span className="stat-label">Verbleibend</span>
+                      <span className="stat-value">
+                        {formatDistance(session.currentSnapshot.distanceRemainingMeters)}
+                      </span>
+                    </div>
+                  )}
+
+                  {session.currentSnapshot.routeProgressPercent !== undefined && (
+                    <div className="stat-item">
+                      <span className="stat-label">Fortschritt</span>
+                      <span className="stat-value">
+                        {session.currentSnapshot.routeProgressPercent.toFixed(0)}%
+                      </span>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          ))}
+        </aside>
+      </main>
+    </div>
+  );
+}
+
+export default App;
