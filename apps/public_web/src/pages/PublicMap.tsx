@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { MapContainer, TileLayer, Marker, Popup, Polyline, useMap } from 'react-leaflet';
+import { MapContainer, TileLayer, Marker, Popup, Polyline, useMap, LayerGroup } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import './PublicMap.css';
@@ -17,12 +17,60 @@ const activeUserIcon = new L.Icon({
   shadowSize: [41, 41]
 });
 
-// Component to fit map to all markers
-function MapBounds({ sessions }: { sessions: PublicSession[] }) {
+const selectedUserIcon = new L.Icon({
+  iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-blue.png',
+  shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png',
+  iconSize: [30, 49],
+  iconAnchor: [15, 49],
+  popupAnchor: [1, -40],
+  shadowSize: [49, 49]
+});
+
+// Component to handle map bounds and focus
+function MapController({ 
+  sessions, 
+  selectedSession,
+  traveledPaths,
+  initialLoad
+}: { 
+  sessions: PublicSession[];
+  selectedSession: string | null;
+  traveledPaths: Map<string, RoutePoint[]>;
+  initialLoad: boolean;
+}) {
   const map = useMap();
-  
+  const previousSelectedRef = useRef<string | null>(null);
+
   useEffect(() => {
-    if (sessions.length > 0) {
+    if (selectedSession && selectedSession !== previousSelectedRef.current) {
+      // Focus on selected session
+      const session = sessions.find(s => s.publicSessionId === selectedSession);
+      if (session?.currentSnapshot) {
+        const { latitude, longitude } = session.currentSnapshot;
+        const traveledPath = traveledPaths.get(selectedSession) || [];
+
+        if (traveledPath.length > 1) {
+          // Fit bounds to show entire traveled path + current position
+          const allPoints = [
+            ...traveledPath.map(p => [p.latitude, p.longitude] as [number, number]),
+            [latitude, longitude] as [number, number]
+          ];
+
+          if (session.routePoints && session.routePoints.length > 0) {
+            // Add remaining route points if available
+            allPoints.push(...session.routePoints.map(p => [p.latitude, p.longitude] as [number, number]));
+          }
+
+          const bounds = L.latLngBounds(allPoints);
+          map.fitBounds(bounds, { padding: [50, 50], maxZoom: 15 });
+        } else {
+          // Just center on current position with appropriate zoom
+          map.setView([latitude, longitude], 14, { animate: true });
+        }
+      }
+      previousSelectedRef.current = selectedSession;
+    } else if (!selectedSession && initialLoad && sessions.length > 0) {
+      // Initial load - show all markers
       const validSessions = sessions.filter(s => s.currentSnapshot);
       if (validSessions.length > 0) {
         const bounds = L.latLngBounds(
@@ -31,11 +79,11 @@ function MapBounds({ sessions }: { sessions: PublicSession[] }) {
             s.currentSnapshot!.longitude
           ])
         );
-        map.fitBounds(bounds, { padding: [50, 50] });
+        map.fitBounds(bounds, { padding: [50, 50], maxZoom: 13 });
       }
     }
-  }, [sessions, map]);
-  
+  }, [selectedSession, sessions, map, traveledPaths, initialLoad]);
+
   return null;
 }
 
@@ -73,31 +121,93 @@ const PublicMap: React.FC = () => {
   const [error, setError] = useState<string>('');
   const [lastUpdate, setLastUpdate] = useState<Date>(new Date());
   const [selectedSession, setSelectedSession] = useState<string | null>(null);
+  const [traveledPaths, setTraveledPaths] = useState<Map<string, RoutePoint[]>>(new Map());
+  const [pathLoading, setPathLoading] = useState<Set<string>>(new Set());
+  const [initialLoad, setInitialLoad] = useState(true);
+  const [connectionError, setConnectionError] = useState(false);
+  const retryTimeoutRef = useRef<number>();
+
+  // Fetch traveled path for a specific session
+  const fetchTraveledPath = async (publicSessionId: string) => {
+    if (pathLoading.has(publicSessionId)) return;
+
+    setPathLoading(prev => new Set(prev).add(publicSessionId));
+
+    try {
+      const response = await fetch(`${API_URL}/api/public/live-sessions/${publicSessionId}/path`);
+
+      if (!response.ok) {
+        console.error('Failed to fetch traveled path for session', publicSessionId);
+        return;
+      }
+
+      const data: RoutePoint[] = await response.json();
+      setTraveledPaths(prev => {
+        const newMap = new Map(prev);
+        newMap.set(publicSessionId, data);
+        return newMap;
+      });
+    } catch (err) {
+      console.error('Error fetching traveled path:', err);
+    } finally {
+      setPathLoading(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(publicSessionId);
+        return newSet;
+      });
+    }
+  };
 
   // Fetch public sessions
-  const fetchSessions = async () => {
+  const fetchSessions = async (isRetry = false) => {
     try {
       const response = await fetch(`${API_URL}/api/public/live-sessions`);
-      
+
       if (!response.ok) {
         throw new Error('Fehler beim Laden der Live-Sessions');
       }
-      
+
       const data: PublicSession[] = await response.json();
       setSessions(data);
       setLastUpdate(new Date());
       setError('');
+      setConnectionError(false);
+
+      // Auto-fetch traveled paths for sessions with snapshots
+      data.forEach(session => {
+        if (session.currentSnapshot && !traveledPaths.has(session.publicSessionId)) {
+          fetchTraveledPath(session.publicSessionId);
+        }
+      });
+
     } catch (err) {
       console.error('Error fetching sessions:', err);
-      setError(err instanceof Error ? err.message : 'Fehler beim Laden der Live-Sessions');
+      const errorMessage = err instanceof Error ? err.message : 'Fehler beim Laden der Live-Sessions';
+      setError(errorMessage);
+      setConnectionError(true);
+
+      // Retry with exponential backoff
+      if (isRetry) {
+        const retryDelay = Math.min(30000, 5000 * Math.pow(2, Math.floor(Math.random() * 3)));
+        retryTimeoutRef.current = window.setTimeout(() => fetchSessions(true), retryDelay);
+      }
     } finally {
       setLoading(false);
+      if (initialLoad) {
+        setInitialLoad(false);
+      }
     }
   };
 
   // Initial load
   useEffect(() => {
     fetchSessions();
+
+    return () => {
+      if (retryTimeoutRef.current) {
+        clearTimeout(retryTimeoutRef.current);
+      }
+    };
   }, []);
 
   // Auto-refresh every 10 seconds
@@ -108,6 +218,27 @@ const PublicMap: React.FC = () => {
 
     return () => clearInterval(interval);
   }, []);
+
+  // Update traveled path for selected session periodically
+  useEffect(() => {
+    if (!selectedSession) return;
+
+    const interval = setInterval(() => {
+      fetchTraveledPath(selectedSession);
+    }, 5000);
+
+    return () => clearInterval(interval);
+  }, [selectedSession]);
+
+  // Handle session selection
+  const handleSessionSelect = (publicSessionId: string) => {
+    setSelectedSession(prev => prev === publicSessionId ? null : publicSessionId);
+
+    // Fetch traveled path if not already loaded
+    if (!traveledPaths.has(publicSessionId)) {
+      fetchTraveledPath(publicSessionId);
+    }
+  };
 
   // Calculate duration
   const calculateDuration = (startedAt: string): string => {
@@ -137,12 +268,41 @@ const PublicMap: React.FC = () => {
     const updateTime = new Date(timestamp);
     const now = new Date();
     const diffSeconds = Math.floor((now.getTime() - updateTime.getTime()) / 1000);
-    
+
     if (diffSeconds < 60) {
       return `vor ${diffSeconds}s`;
     }
     const diffMinutes = Math.floor(diffSeconds / 60);
-    return `vor ${diffMinutes}min`;
+    if (diffMinutes < 60) {
+      return `vor ${diffMinutes}min`;
+    }
+    const hours = Math.floor(diffMinutes / 60);
+    return `vor ${hours}h`;
+  };
+
+  // Calculate remaining route from current position
+  const getRemainingRoute = (session: PublicSession): RoutePoint[] | null => {
+    if (!session.routePoints || session.routePoints.length === 0 || !session.currentSnapshot) {
+      return null;
+    }
+
+    if (session.currentSnapshot.routeProgressPercent === undefined) {
+      return null;
+    }
+
+    const progressPercent = session.currentSnapshot.routeProgressPercent;
+    const progressIndex = Math.floor((progressPercent / 100) * session.routePoints.length);
+
+    // Return route points from current progress onwards
+    const remaining = session.routePoints.slice(Math.max(0, progressIndex));
+
+    // Add current position as first point if it's not close to the route
+    if (remaining.length > 0) {
+      const { latitude, longitude } = session.currentSnapshot;
+      return [{ latitude, longitude }, ...remaining];
+    }
+
+    return remaining;
   };
 
   if (loading) {
@@ -175,8 +335,8 @@ const PublicMap: React.FC = () => {
               {lastUpdate.toLocaleTimeString('de-DE')}
             </div>
             <div className="auto-refresh">
-              <span className="pulse-dot-small"></span>
-              Auto-Refresh
+              <span className={`pulse-dot-small ${connectionError ? 'error' : ''}`}></span>
+              {connectionError ? 'Verbindungsfehler' : 'Auto-Refresh'}
             </div>
           </div>
           <button 
@@ -188,7 +348,7 @@ const PublicMap: React.FC = () => {
         </div>
       </div>
 
-      {error && (
+      {error && !connectionError && (
         <div className="error-banner-public">
           <span>⚠️</span>
           {error}
@@ -200,7 +360,7 @@ const PublicMap: React.FC = () => {
         {/* Map */}
         <div className="map-section">
           <MapContainer
-            center={[48.1351, 11.5820]} // München als Default
+            center={[48.1351, 11.5820]}
             zoom={11}
             style={{ height: '100%', width: '100%' }}
           >
@@ -208,34 +368,57 @@ const PublicMap: React.FC = () => {
               url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
               attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
             />
-            
-            {/* User markers and routes */}
-            {sessions.map(session => {
-              if (!session.currentSnapshot) return null;
-              
-              const { latitude, longitude } = session.currentSnapshot;
-              
+
+            {/* Layers for selected session */}
+            {selectedSession && sessions.map(session => {
+              if (session.publicSessionId !== selectedSession || !session.currentSnapshot) return null;
+
+              const traveledPath = traveledPaths.get(selectedSession) || [];
+              const remainingRoute = getRemainingRoute(session);
+
               return (
-                <React.Fragment key={session.publicSessionId}>
-                  {/* Route polyline if available */}
-                  {session.routePoints && session.routePoints.length > 0 && (
+                <LayerGroup key={`selected-${session.publicSessionId}`}>
+                  {/* Traveled path - solid line */}
+                  {traveledPath.length > 1 && (
                     <Polyline
-                      positions={session.routePoints.map(p => [p.latitude, p.longitude])}
-                      color="#94a3b8"
-                      weight={3}
-                      opacity={0.5}
-                      dashArray="5, 10"
+                      positions={traveledPath.map(p => [p.latitude, p.longitude])}
+                      color="#3b82f6"
+                      weight={4}
+                      opacity={0.8}
                     />
                   )}
-                  
-                  {/* User marker */}
-                  <Marker
-                    position={[latitude, longitude]}
-                    icon={activeUserIcon}
-                    eventHandlers={{
-                      click: () => setSelectedSession(session.publicSessionId)
-                    }}
-                  >
+
+                  {/* Remaining route - dashed line */}
+                  {remainingRoute && remainingRoute.length > 1 && (
+                    <Polyline
+                      positions={remainingRoute.map(p => [p.latitude, p.longitude])}
+                      color="#94a3b8"
+                      weight={3}
+                      opacity={0.6}
+                      dashArray="10, 10"
+                    />
+                  )}
+                </LayerGroup>
+              );
+            })}
+
+            {/* Markers for all active users */}
+            {sessions.map(session => {
+              if (!session.currentSnapshot) return null;
+
+              const { latitude, longitude } = session.currentSnapshot;
+              const isSelected = selectedSession === session.publicSessionId;
+
+              return (
+                <Marker
+                  key={`marker-${session.publicSessionId}`}
+                  position={[latitude, longitude]}
+                  icon={isSelected ? selectedUserIcon : activeUserIcon}
+                  eventHandlers={{
+                    click: () => handleSessionSelect(session.publicSessionId)
+                  }}
+                  zIndexOffset={isSelected ? 1000 : 0}
+                >
                     <Popup>
                       <div className="marker-popup">
                         <div className="popup-header">
@@ -303,12 +486,16 @@ const PublicMap: React.FC = () => {
                       </div>
                     </Popup>
                   </Marker>
-                </React.Fragment>
-              );
-            })}
-            
-            {/* Auto-fit bounds */}
-            <MapBounds sessions={sessions} />
+                );
+              })}
+
+            {/* Map controller for bounds and focus */}
+            <MapController 
+              sessions={sessions} 
+              selectedSession={selectedSession}
+              traveledPaths={traveledPaths}
+              initialLoad={initialLoad}
+            />
           </MapContainer>
         </div>
 
@@ -330,7 +517,7 @@ const PublicMap: React.FC = () => {
                 <div
                   key={session.publicSessionId}
                   className={`session-card ${selectedSession === session.publicSessionId ? 'selected' : ''}`}
-                  onClick={() => setSelectedSession(session.publicSessionId)}
+                  onClick={() => handleSessionSelect(session.publicSessionId)}
                 >
                   <div className="session-card-header">
                     {session.profileImageUrl ? (
@@ -388,6 +575,23 @@ const PublicMap: React.FC = () => {
                         <span className="icon">🕐</span>
                         {getTimeSinceUpdate(session.currentSnapshot.timestampUtc)}
                       </div>
+                    </div>
+                  )}
+
+                  {selectedSession === session.publicSessionId && (
+                    <div className="session-details">
+                      {traveledPaths.has(session.publicSessionId) && (
+                        <div className="path-info">
+                          <span className="path-indicator traveled">━━━</span>
+                          <span className="path-label">Gefahrene Strecke</span>
+                        </div>
+                      )}
+                      {getRemainingRoute(session) && (
+                        <div className="path-info">
+                          <span className="path-indicator planned">╌╌╌</span>
+                          <span className="path-label">Verbleibende Route</span>
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>
