@@ -175,4 +175,37 @@ public class PublicLiveSessionsController : ControllerBase
             return StatusCode(500, new { message = "Internal server error", error = ex.Message });
         }
     }
+
+    [HttpGet("{publicSessionId}/path")]
+    public async Task<ActionResult<List<RoutePointDto>>> GetSessionPath(string publicSessionId)
+    {
+        try
+        {
+            var session = await _context.LiveSessions
+                .AsNoTracking()
+                .Include(ls => ls.Activity)
+                .Where(ls => ls.PublicSessionId == publicSessionId && ls.IsPublic)
+                .FirstOrDefaultAsync();
+
+            if (session == null)
+            {
+                return NotFound(new { message = "Session not found or not public" });
+            }
+
+            // Get activity points (traveled path)
+            var activityPoints = await _context.ActivityPoints
+                .AsNoTracking()
+                .Where(ap => ap.ActivityId == session.ActivityId)
+                .OrderBy(ap => ap.Timestamp)
+                .Select(ap => new RoutePointDto(ap.Latitude, ap.Longitude, ap.ElevationMeters))
+                .ToListAsync();
+
+            return Ok(activityPoints);
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error in GetSessionPath: {ex}");
+            return StatusCode(500, new { message = "Internal server error", error = ex.Message });
+        }
+    }
 }

@@ -5,6 +5,7 @@ export interface PublicLiveSession {
   startedAt: string;
   currentSnapshot?: PublicLiveSnapshot;
   routePoints?: RoutePoint[];
+  traveledPath?: RoutePoint[];
 }
 
 export interface PublicLiveSnapshot {
@@ -24,3 +25,4 @@ export interface RoutePoint {
   longitude: number;
   elevationMeters?: number;
 }
+
