@@ -137,6 +137,35 @@ export function useActivities() {
     }
   };
 
+  const sendLiveSnapshot = async (liveSessionId: string, data: {
+    latitude: number;
+    longitude: number;
+    gpsAccuracyMeters?: number;
+    speedKmh?: number;
+    distanceCompletedMeters: number;
+    distanceRemainingMeters?: number;
+    routeProgressPercent?: number;
+    heartRateBpm?: number;
+    cadenceRpm?: number;
+    powerWatts?: number;
+  }): Promise<void> => {
+    const response = await fetch(`${API_URL}/api/live-sessions/${liveSessionId}/snapshots`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      },
+      body: JSON.stringify(data)
+    });
+
+    if (!response.ok) {
+      if (response.status === 401) {
+        throw new Error('401: Sitzung abgelaufen');
+      }
+      throw new Error('Fehler beim Senden des Live-Snapshots');
+    }
+  };
+
   const pauseActivity = async (activityId: string): Promise<void> => {
     const response = await fetch(`${API_URL}/api/activities/${activityId}/pause`, {
       method: 'POST',
@@ -188,6 +217,7 @@ export function useActivities() {
     startActivity,
     startLiveSession,
     sendSnapshot,
+    sendLiveSnapshot,
     pauseActivity,
     resumeActivity,
     endLiveSession,

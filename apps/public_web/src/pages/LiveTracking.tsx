@@ -61,9 +61,10 @@ const LiveTracking: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { token } = useAuth();
-  const { getActivityDetails, sendSnapshot, finishActivity, pauseActivity, resumeActivity } = useActivities();
+  const { getActivityDetails, sendSnapshot, sendLiveSnapshot, finishActivity, pauseActivity, resumeActivity, getMyActiveSessions } = useActivities();
 
   const [activity, setActivity] = useState<ActivityStatus | null>(null);
+  const [liveSessionId, setLiveSessionId] = useState<string | null>(null);
   const [gpsPoints, setGpsPoints] = useState<GPSPoint[]>([]);
   const [currentPosition, setCurrentPosition] = useState<[number, number] | null>(null);
   const [isTracking, setIsTracking] = useState(true);
@@ -85,11 +86,13 @@ const LiveTracking: React.FC = () => {
   const lastPointRef = useRef<GPSPoint | null>(null);
   const lastUploadTimeRef = useRef<number>(0); // Timestamp of last backend upload
   const sendSnapshotRef = useRef(sendSnapshot);
+  const sendLiveSnapshotRef = useRef(sendLiveSnapshot);
 
-  // Keep sendSnapshotRef up to date
+  // Keep refs up to date
   useEffect(() => {
     sendSnapshotRef.current = sendSnapshot;
-  }, [sendSnapshot]);
+    sendLiveSnapshotRef.current = sendLiveSnapshot;
+  }, [sendSnapshot, sendLiveSnapshot]);
 
   // Format time as HH:MM:SS
   const formatDuration = (seconds: number): string => {
@@ -134,6 +137,20 @@ const LiveTracking: React.FC = () => {
           startedAt: details.startedAt,
           totalDistanceMeters: details.totalDistanceMeters
         });
+
+        // Load LiveSession ID if exists
+        try {
+          const sessions = await getMyActiveSessions();
+          const currentSession = sessions.find(s => s.activityId === id);
+          if (currentSession) {
+            setLiveSessionId(currentSession.id);
+            console.log('Found LiveSession ID:', currentSession.id);
+          } else {
+            console.log('No active LiveSession found for this activity');
+          }
+        } catch (err) {
+          console.warn('Could not load LiveSession:', err);
+        }
 
         // Load existing GPS points
         if (details.points && details.points.length > 0) {
@@ -187,7 +204,7 @@ const LiveTracking: React.FC = () => {
       unsubscribe();
       gpsQueueService.stop();
     };
-  }, [id, token, getActivityDetails]);
+  }, [id, token, getActivityDetails, getMyActiveSessions]);
 
   // GPS tracking
   useEffect(() => {
@@ -250,11 +267,12 @@ const LiveTracking: React.FC = () => {
         maxSpeedRef.current = currentSpeed;
       }
 
+      let newDistance = 0;
       setStats(prev => {
-        const newDistance = prev.distance + addedDistance;
+        newDistance = prev.distance + addedDistance;
         const duration = Math.floor((Date.now() - startTimeRef.current.getTime()) / 1000);
         const averageSpeed = duration > 0 ? (newDistance / duration) * 3.6 : 0; // Convert m/s to km/h
-        
+
         return {
           distance: newDistance,
           duration,
@@ -284,6 +302,27 @@ const LiveTracking: React.FC = () => {
             accuracyMeters: newPoint.accuracy
           });
           console.log('GPS point uploaded to backend');
+
+          // Also send to LiveSession if available
+          if (liveSessionId) {
+            try {
+              await sendLiveSnapshotRef.current(liveSessionId, {
+                latitude,
+                longitude,
+                gpsAccuracyMeters: newPoint.accuracy,
+                speedKmh: newPoint.speed,
+                distanceCompletedMeters: newDistance,
+                distanceRemainingMeters: undefined,
+                routeProgressPercent: undefined,
+                heartRateBpm: undefined,
+                cadenceRpm: undefined,
+                powerWatts: undefined
+              });
+              console.log('Live snapshot uploaded to backend');
+            } catch (liveErr) {
+              console.warn('Failed to send live snapshot, but activity point was saved:', liveErr);
+            }
+          }
         } catch (err) {
           console.warn('Direct upload failed, queueing for offline sync:', err);
           // Queue for offline sync
