@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<network-security-config>
+    <!-- Allow cleartext traffic for development -->
+    <base-config cleartextTrafficPermitted="false">
+        <trust-anchors>
+            <certificates src="system" />
+        </trust-anchors>
+    </base-config>
+    
+    <!-- Production: HTTPS only -->
+    <domain-config>
+        <domain includeSubdomains="true">velopulse.de</domain>
+        <domain includeSubdomains="true">www.velopulse.de</domain>
+    </domain-config>
+</network-security-config>
