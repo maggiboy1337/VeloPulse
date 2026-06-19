@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { MapContainer, TileLayer, Polyline, Marker, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
@@ -60,6 +60,7 @@ interface ActivityStatus {
 const LiveTracking: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const location = useLocation();
   const { token } = useAuth();
   const { getActivityDetails, sendSnapshot, sendLiveSnapshot, finishActivity, pauseActivity, resumeActivity, getMyActiveSessions } = useActivities();
 
@@ -138,18 +139,24 @@ const LiveTracking: React.FC = () => {
           totalDistanceMeters: details.totalDistanceMeters
         });
 
-        // Load LiveSession ID if exists
-        try {
-          const sessions = await getMyActiveSessions();
-          const currentSession = sessions.find(s => s.activityId === id);
-          if (currentSession) {
-            setLiveSessionId(currentSession.id);
-            console.log('Found LiveSession ID:', currentSession.id);
-          } else {
-            console.log('No active LiveSession found for this activity');
+        // Load LiveSession ID - first check navigation state, then API
+        const navigationState = location.state as { liveSessionId?: string } | null;
+        if (navigationState?.liveSessionId) {
+          setLiveSessionId(navigationState.liveSessionId);
+          console.log('LiveSession ID from navigation:', navigationState.liveSessionId);
+        } else {
+          try {
+            const sessions = await getMyActiveSessions();
+            const currentSession = sessions.find(s => s.activityId === id);
+            if (currentSession) {
+              setLiveSessionId(currentSession.id);
+              console.log('Found LiveSession ID from API:', currentSession.id);
+            } else {
+              console.warn('No active LiveSession found for this activity');
+            }
+          } catch (err) {
+            console.warn('Could not load LiveSession:', err);
           }
-        } catch (err) {
-          console.warn('Could not load LiveSession:', err);
         }
 
         // Load existing GPS points
@@ -204,7 +211,7 @@ const LiveTracking: React.FC = () => {
       unsubscribe();
       gpsQueueService.stop();
     };
-  }, [id, token, getActivityDetails, getMyActiveSessions]);
+  }, [id, token, location.state, getActivityDetails, getMyActiveSessions]);
 
   // GPS tracking
   useEffect(() => {
@@ -301,7 +308,7 @@ const LiveTracking: React.FC = () => {
             speedKmh: newPoint.speed,
             accuracyMeters: newPoint.accuracy
           });
-          console.log('GPS point uploaded to backend');
+          console.log('✅ GPS point uploaded to activity backend');
 
           // Also send to LiveSession if available
           if (liveSessionId) {
@@ -318,10 +325,12 @@ const LiveTracking: React.FC = () => {
                 cadenceRpm: undefined,
                 powerWatts: undefined
               });
-              console.log('Live snapshot uploaded to backend');
+              console.log('✅ Live snapshot uploaded to backend (LiveSession ID:', liveSessionId, ')');
             } catch (liveErr) {
-              console.warn('Failed to send live snapshot, but activity point was saved:', liveErr);
+              console.warn('⚠️ Failed to send live snapshot, but activity point was saved:', liveErr);
             }
+          } else {
+            console.warn('⚠️ No LiveSession ID available yet - snapshot not sent to live map');
           }
         } catch (err) {
           console.warn('Direct upload failed, queueing for offline sync:', err);

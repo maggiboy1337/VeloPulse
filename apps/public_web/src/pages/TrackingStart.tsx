@@ -78,10 +78,12 @@ export function TrackingStart() {
       );
 
       // Start live session
-      await startLiveSession(activity.id, isPublic);
+      const liveSession = await startLiveSession(activity.id, isPublic);
 
-      // Navigate to live tracking view (we'll create this later)
-      navigate(`/tracking/live/${activity.id}`);
+      // Navigate to live tracking view with session ID
+      navigate(`/tracking/live/${activity.id}`, { 
+        state: { liveSessionId: liveSession.id } 
+      });
     } catch (err) {
       console.error('Fehler beim Starten:', err);
       setError(err instanceof Error ? err.message : 'Fehler beim Starten des Trackings');
