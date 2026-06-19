@@ -249,7 +249,8 @@ public class LiveSessionsController : ControllerBase
             user?.Profile?.ProfileImageUrl,
             session.StartedAt,
             null,
-            routePoints
+            routePoints,
+            new List<ActivityPointDto>()  // Empty at session start - will be populated as GPS points come in
         );
 
         await _hubContext.SendLiveSessionStarted(session.PublicSessionId, publicSession);
