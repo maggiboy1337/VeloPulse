@@ -290,10 +290,11 @@ const LiveTracking: React.FC = () => {
       });
 
       // Send to backend (with offline queue fallback)
-      // Only upload every 10 seconds to reduce database load
+      // Upload every 30 seconds, or immediately for first GPS point
       const now = Date.now();
       const timeSinceLastUpload = now - lastUploadTimeRef.current;
-      const shouldUpload = timeSinceLastUpload >= 10000; // 10 seconds
+      const isFirstUpload = lastUploadTimeRef.current === 0;
+      const shouldUpload = isFirstUpload || timeSinceLastUpload >= 30000; // 30 seconds
 
       if (shouldUpload) {
         lastUploadTimeRef.current = now;
@@ -327,13 +328,14 @@ const LiveTracking: React.FC = () => {
               });
               console.log('✅ Live snapshot uploaded to backend (LiveSession ID:', liveSessionId, ')');
             } catch (liveErr) {
-              console.warn('⚠️ Failed to send live snapshot, but activity point was saved:', liveErr);
+              console.error('⚠️ Failed to send live snapshot:', liveErr);
+              // Try to continue anyway
             }
           } else {
             console.warn('⚠️ No LiveSession ID available yet - snapshot not sent to live map');
           }
         } catch (err) {
-          console.warn('Direct upload failed, queueing for offline sync:', err);
+          console.warn('⚠️ Direct upload failed, queueing for offline sync:', err);
           // Queue for offline sync
           try {
             await gpsQueueService.enqueue(id, {
@@ -345,11 +347,12 @@ const LiveTracking: React.FC = () => {
               accuracyMeters: newPoint.accuracy
             });
           } catch (queueErr) {
-            console.error('Failed to queue GPS point:', queueErr);
+            console.error('❌ Failed to queue GPS point:', queueErr);
           }
         }
       } else {
-        console.log(`Skipping upload - ${(10 - timeSinceLastUpload / 1000).toFixed(1)}s until next upload`);
+        const remainingSeconds = (30 - timeSinceLastUpload / 1000).toFixed(0);
+        console.log(`⏱️ Next upload in ${remainingSeconds}s`);
       }
     };
 
