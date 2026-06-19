@@ -194,10 +194,12 @@ class ServiceWorkerService {
     }
 
     try {
-      // Type assertion needed - periodicSync is experimental
-      const status = await (navigator.permissions.query as any)({
+      // Experimental API - requires double type assertion via unknown
+      const permissionQuery = {
         name: 'periodic-background-sync'
-      } as PermissionDescriptor);
+      } as unknown as PermissionDescriptor;
+
+      const status = await navigator.permissions.query(permissionQuery);
 
       if (status.state === 'granted') {
         // @ts-ignore
