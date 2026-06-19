@@ -7,6 +7,7 @@ import { useActivities } from '../hooks/useActivities';
 import { useAuth } from '../contexts/AuthContext';
 import { gpsQueueService, SyncStatus } from '../services/gpsQueueService';
 import { serviceWorkerService } from '../services/serviceWorkerService';
+import { capacitorGpsService } from '../services/capacitorGpsService';
 import './LiveTracking.css';
 
 // Custom icons
@@ -76,6 +77,7 @@ const LiveTracking: React.FC = () => {
   const [syncStatus, setSyncStatus] = useState<SyncStatus | null>(null);
   const [wakeLockActive, setWakeLockActive] = useState(false);
   const [isPageVisible, setIsPageVisible] = useState(true);
+  const [useNativeGps, setUseNativeGps] = useState(false); // Track if using Capacitor GPS
   const [stats, setStats] = useState({
     distance: 0,
     duration: 0,
@@ -331,13 +333,79 @@ const LiveTracking: React.FC = () => {
     };
   }, [id, token]); // REMOVED problematic dependencies!
 
-  // GPS tracking
+  // GPS tracking - Hybrid: Native (Capacitor) or Browser fallback
   useEffect(() => {
     if (!isTracking || !id) {
       console.log('GPS tracking skipped - isTracking:', isTracking, 'id:', id);
       return;
     }
 
+    // Check if native GPS is available
+    const isNative = capacitorGpsService.isNativePlatform();
+    setUseNativeGps(isNative);
+
+    if (isNative) {
+      console.log('🚀 Starting NATIVE GPS tracking (Capacitor)');
+      startNativeGpsTracking();
+    } else {
+      console.log('🌐 Starting BROWSER GPS tracking (fallback)');
+      startBrowserGpsTracking();
+    }
+
+    return () => {
+      if (isNative) {
+        capacitorGpsService.stopTracking();
+        console.log('🛑 Native GPS tracking stopped');
+      } else if (watchIdRef.current !== null) {
+        navigator.geolocation.clearWatch(watchIdRef.current);
+        watchIdRef.current = null;
+        console.log('🛑 Browser GPS tracking stopped');
+      }
+    };
+  }, [isTracking, isPaused, id]);
+
+  // Start Native GPS tracking (Capacitor)
+  const startNativeGpsTracking = async () => {
+    const success = await capacitorGpsService.startTracking(
+      (position) => {
+        // Convert native GPS position to standard format
+        handleGpsUpdate({
+          coords: {
+            latitude: position.latitude,
+            longitude: position.longitude,
+            altitude: position.altitude,
+            speed: position.speed,
+            accuracy: position.accuracy,
+            heading: position.heading,
+            altitudeAccuracy: null
+          },
+          timestamp: position.timestamp
+        } as GeolocationPosition);
+      },
+      (error) => {
+        console.error('❌ Native GPS Error:', error);
+        if (error.code === 2) {
+          setGpsPermissionDenied(true);
+          setError('GPS-Berechtigung verweigert');
+        } else {
+          setError(`GPS-Fehler: ${error.message}`);
+        }
+      },
+      {
+        distanceFilter: 5, // Update every 5 meters
+        backgroundTitle: 'VeloPulse Live Tracking',
+        backgroundMessage: `${stats.distance > 0 ? (stats.distance / 1000).toFixed(2) + ' km' : 'Tracking...'}`
+      }
+    );
+
+    if (!success) {
+      console.error('❌ Failed to start native GPS');
+      setError('Native GPS konnte nicht gestartet werden');
+    }
+  };
+
+  // Start Browser GPS tracking (fallback)
+  const startBrowserGpsTracking = () => {
     if (!navigator.geolocation) {
       setError('GPS wird von diesem Gerät nicht unterstützt');
       return;
@@ -352,7 +420,8 @@ const LiveTracking: React.FC = () => {
 
     console.log('Starting GPS tracking for activity:', id);
 
-    const handlePosition = async (position: GeolocationPosition) => {
+    // Shared GPS update handler for both native and browser GPS
+    const handleGpsUpdate = async (position: GeolocationPosition) => {
       const { latitude, longitude, altitude, speed, accuracy } = position.coords;
       const timestamp = new Date(position.timestamp);
 
@@ -378,7 +447,7 @@ const LiveTracking: React.FC = () => {
           latitude,
           longitude
         );
-        
+
         // Only add point if moved at least 5 meters (to avoid GPS drift)
         if (addedDistance < 5) {
           return;
@@ -422,9 +491,13 @@ const LiveTracking: React.FC = () => {
         lastUploadTimeRef.current = now;
         const uploadMode = document.visibilityState === 'hidden' ? 'BACKGROUND' : 'FOREGROUND';
 
+        // Type guard: ensure id is defined
+        const activityId = id;
+        if (!activityId) return;
+
         try {
           // Try direct upload first using ref to avoid re-renders
-          await sendSnapshotRef.current(id, {
+          await sendSnapshotRef.current(activityId, {
             timestamp: timestamp.toISOString(),
             latitude,
             longitude,
@@ -462,7 +535,7 @@ const LiveTracking: React.FC = () => {
           console.warn('⚠️ Direct upload failed, queueing for offline sync:', err);
           // Queue for offline sync
           try {
-            await gpsQueueService.enqueue(id, {
+            await gpsQueueService.enqueue(activityId, {
               timestamp: timestamp.toISOString(),
               latitude,
               longitude,
@@ -481,7 +554,7 @@ const LiveTracking: React.FC = () => {
     };
 
     const handleError = (error: GeolocationPositionError) => {
-      console.error('GPS error:', error);
+      console.error('Browser GPS error:', error);
       let errorMessage = '';
       switch (error.code) {
         case error.PERMISSION_DENIED:
@@ -502,11 +575,11 @@ const LiveTracking: React.FC = () => {
       setError(errorMessage);
     };
 
-    console.log('🛰️ Starting GPS tracking (Background-ready)...');
+    console.log('🛰️ Starting Browser GPS tracking (Background-limited)...');
 
     // Start watching position with optimized settings for background operation
     watchIdRef.current = navigator.geolocation.watchPosition(
-      handlePosition,
+      handleGpsUpdate,
       handleError,
       {
         enableHighAccuracy: true,
@@ -515,17 +588,143 @@ const LiveTracking: React.FC = () => {
       }
     );
 
-    console.log('GPS watchPosition started with id:', watchIdRef.current);
+    console.log('Browser GPS watchPosition started with id:', watchIdRef.current);
+  };
 
-    // Cleanup
-    return () => {
-      if (watchIdRef.current !== null) {
-        console.log('Stopping GPS tracking, watch id:', watchIdRef.current);
-        navigator.geolocation.clearWatch(watchIdRef.current);
-        watchIdRef.current = null;
-      }
+  // Shared GPS update handler - used by both native and browser GPS
+  const handleGpsUpdate = async (position: GeolocationPosition) => {
+    if (!id) return; // Safety check
+
+    const { latitude, longitude, altitude, speed, accuracy } = position.coords;
+    const timestamp = new Date(position.timestamp);
+
+    // Log background status
+    const bgStatus = document.visibilityState === 'hidden' ? '🌑 BACKGROUND' : '👁️ FOREGROUND';
+    console.log(`📍 GPS Update [${bgStatus}]: lat=${latitude.toFixed(6)}, lon=${longitude.toFixed(6)}, acc=${accuracy?.toFixed(1)}m`);
+
+    const newPoint: GPSPoint = {
+      timestamp,
+      latitude,
+      longitude,
+      elevation: altitude || undefined,
+      speed: speed ? speed * 3.6 : undefined, // Convert m/s to km/h
+      accuracy: accuracy || undefined
     };
-  }, [isTracking, id]); // Removed sendSnapshot from dependencies to prevent re-renders
+
+    // Calculate distance from last point
+    let addedDistance = 0;
+    if (lastPointRef.current) {
+      addedDistance = calculateDistance(
+        lastPointRef.current.latitude,
+        lastPointRef.current.longitude,
+        latitude,
+        longitude
+      );
+
+      // Only add point if moved at least 5 meters (to avoid GPS drift)
+      if (addedDistance < 5) {
+        return;
+      }
+    }
+
+    // Update state
+    setGpsPoints(prev => [...prev, newPoint]);
+    setCurrentPosition([latitude, longitude]);
+    lastPointRef.current = newPoint;
+
+    // Update statistics
+    const currentSpeed = newPoint.speed || 0;
+    if (currentSpeed > maxSpeedRef.current) {
+      maxSpeedRef.current = currentSpeed;
+    }
+
+    let newDistance = 0;
+    setStats(prev => {
+      newDistance = prev.distance + addedDistance;
+      const duration = Math.floor((Date.now() - startTimeRef.current.getTime()) / 1000);
+      const averageSpeed = duration > 0 ? (newDistance / duration) * 3.6 : 0; // Convert m/s to km/h
+
+      return {
+        distance: newDistance,
+        duration,
+        currentSpeed,
+        averageSpeed,
+        maxSpeed: maxSpeedRef.current
+      };
+    });
+
+    // Send to backend (with offline queue fallback)
+    // Upload every 30 seconds, or immediately for first GPS point
+    const now = Date.now();
+    const timeSinceLastUpload = now - lastUploadTimeRef.current;
+    const isFirstUpload = lastUploadTimeRef.current === 0;
+    const shouldUpload = isFirstUpload || timeSinceLastUpload >= 30000; // 30 seconds
+
+    if (shouldUpload) {
+      lastUploadTimeRef.current = now;
+      const uploadMode = document.visibilityState === 'hidden' ? 'BACKGROUND' : 'FOREGROUND';
+
+      // Type guard: ensure id is defined
+      const activityId = id;
+      if (!activityId) return;
+
+      try {
+        // Try direct upload first using ref to avoid re-renders
+        await sendSnapshotRef.current(activityId, {
+          timestamp: timestamp.toISOString(),
+          latitude,
+          longitude,
+          elevationMeters: newPoint.elevation,
+          speedKmh: newPoint.speed,
+          accuracyMeters: newPoint.accuracy
+        });
+        console.log(`✅ GPS point uploaded [${uploadMode}] to activity backend`);
+
+        // Also send to LiveSession if available
+        const currentLiveSessionId = liveSessionIdRef.current;
+        if (currentLiveSessionId) {
+          try {
+            await sendLiveSnapshotRef.current(currentLiveSessionId, {
+              latitude,
+              longitude,
+              gpsAccuracyMeters: newPoint.accuracy,
+              speedKmh: newPoint.speed,
+              distanceCompletedMeters: newDistance,
+              distanceRemainingMeters: undefined,
+              routeProgressPercent: undefined,
+              heartRateBpm: undefined,
+              cadenceRpm: undefined,
+              powerWatts: undefined
+            });
+            console.log(`✅ Live snapshot uploaded [${uploadMode}] (LiveSession ID: ${currentLiveSessionId})`);
+          } catch (liveErr) {
+            console.error('⚠️ Failed to send live snapshot:', liveErr);
+            // Try to continue anyway
+          }
+        } else {
+          console.warn('⚠️ No LiveSession ID available yet - snapshot not sent to live map');
+        }
+      } catch (err) {
+        console.warn('⚠️ Direct upload failed, queueing for offline sync:', err);
+        // Queue for offline sync
+        try {
+          await gpsQueueService.enqueue(activityId, {
+            timestamp: timestamp.toISOString(),
+            latitude,
+            longitude,
+            elevationMeters: newPoint.elevation,
+            speedKmh: newPoint.speed,
+            accuracyMeters: newPoint.accuracy
+          });
+        } catch (queueErr) {
+          console.error('❌ Failed to queue GPS point:', queueErr);
+        }
+      }
+    } else {
+      const remainingSeconds = (30 - timeSinceLastUpload / 1000).toFixed(0);
+      console.log(`⏱️ Next upload in ${remainingSeconds}s`);
+    }
+  };
 
   // Update duration every second
   useEffect(() => {
@@ -801,6 +1000,9 @@ const LiveTracking: React.FC = () => {
 
         {/* Background Tracking Indicators */}
         <div className="tracking-indicators">
+          <div className={`indicator ${useNativeGps ? 'native' : 'browser'}`}>
+            {useNativeGps ? '📱 Native GPS (Hintergrund-fähig)' : '🌐 Browser GPS (eingeschränkt)'}
+          </div>
           <div className={`indicator ${wakeLockActive ? 'active' : 'inactive'}`}>
             {wakeLockActive ? '🔒 Display aktiv' : '🔓 Display-Sperre aus'}
           </div>
