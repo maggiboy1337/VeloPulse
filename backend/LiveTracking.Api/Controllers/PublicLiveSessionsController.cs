@@ -55,6 +55,20 @@ public class PublicLiveSessionsController : ControllerBase
                         routePoints = points;
                     }
 
+                    // Get activity points (actual GPS track)
+                    List<ActivityPointDto> activityPoints = new List<ActivityPointDto>();
+                    if (ls.Activity != null)
+                    {
+                        var points = await _context.ActivityPoints
+                            .AsNoTracking()
+                            .Where(ap => ap.ActivityId == ls.Activity.Id)
+                            .OrderBy(ap => ap.Timestamp)
+                            .Take(1000) // Limit to last 1000 points for performance
+                            .Select(ap => new ActivityPointDto(ap.Latitude, ap.Longitude, ap.Timestamp))
+                            .ToListAsync();
+                        activityPoints = points;
+                    }
+
                     var latestSnapshot = ls.Snapshots?.OrderByDescending(s => s.TimestampUtc).FirstOrDefault();
 
                     var displayName = ls.User.Profile?.DisplayName ?? "Anonymous";
@@ -80,7 +94,8 @@ public class PublicLiveSessionsController : ControllerBase
                                 shareHeartRate ? latestSnapshot.HeartRateBpm : null
                             )
                             : null,
-                        routePoints
+                        routePoints,
+                        activityPoints  // Add actual GPS track
                     ));
                 }
                 catch (Exception ex)

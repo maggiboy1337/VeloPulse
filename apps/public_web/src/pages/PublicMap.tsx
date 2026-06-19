@@ -45,6 +45,12 @@ interface RoutePoint {
   elevationMeters?: number;
 }
 
+interface ActivityPoint {
+  latitude: number;
+  longitude: number;
+  timestamp: string;
+}
+
 interface PublicSnapshot {
   timestampUtc: string;
   latitude: number;
@@ -63,7 +69,8 @@ interface PublicSession {
   profileImageUrl?: string;
   startedAt: string;
   currentSnapshot?: PublicSnapshot;
-  routePoints?: RoutePoint[];
+  routePoints?: RoutePoint[];  // Planned route
+  activityPoints?: ActivityPoint[];  // Actual GPS track
 }
 
 const PublicMap: React.FC = () => {
@@ -216,7 +223,9 @@ const PublicMap: React.FC = () => {
             {sessions.map(session => {
               console.log('🗺️ Processing session for map:', session.publicSessionId, {
                 hasSnapshot: !!session.currentSnapshot,
-                snapshot: session.currentSnapshot
+                snapshot: session.currentSnapshot,
+                hasRoutePoints: session.routePoints?.length || 0,
+                hasActivityPoints: session.activityPoints?.length || 0
               });
 
               if (!session.currentSnapshot) {
@@ -225,11 +234,17 @@ const PublicMap: React.FC = () => {
               }
 
               const { latitude, longitude } = session.currentSnapshot;
-              console.log('📍 Marker position:', { latitude, longitude, sessionId: session.publicSessionId });
+              console.log('📍 Marker position:', { 
+                latitude, 
+                longitude, 
+                sessionId: session.publicSessionId,
+                routePoints: session.routePoints?.length || 0,
+                activityPoints: session.activityPoints?.length || 0
+              });
 
               return (
                 <React.Fragment key={session.publicSessionId}>
-                  {/* Route polyline if available */}
+                  {/* Route polyline if available (planned route - gray dashed) */}
                   {session.routePoints && session.routePoints.length > 0 && (
                     <Polyline
                       positions={session.routePoints.map(p => [p.latitude, p.longitude])}
@@ -239,7 +254,17 @@ const PublicMap: React.FC = () => {
                       dashArray="5, 10"
                     />
                   )}
-                  
+
+                  {/* Activity points polyline (actual GPS track - blue solid) */}
+                  {session.activityPoints && session.activityPoints.length > 0 && (
+                    <Polyline
+                      positions={session.activityPoints.map(p => [p.latitude, p.longitude])}
+                      color="#667eea"
+                      weight={4}
+                      opacity={0.8}
+                    />
+                  )}
+
                   {/* User marker */}
                   <Marker
                     position={[latitude, longitude]}

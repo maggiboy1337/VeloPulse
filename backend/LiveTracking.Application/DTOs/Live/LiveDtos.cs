@@ -37,7 +37,14 @@ public record PublicLiveSessionDto(
     string? ProfileImageUrl,
     DateTime StartedAt,
     PublicLiveSnapshotDto? CurrentSnapshot,
-    List<RoutePointDto>? RoutePoints
+    List<RoutePointDto>? RoutePoints,
+    List<ActivityPointDto>? ActivityPoints  // Actual GPS track
+);
+
+public record ActivityPointDto(
+    double Latitude,
+    double Longitude,
+    DateTime Timestamp
 );
 
 public record PublicLiveSnapshotDto(
