@@ -68,7 +68,12 @@ var corsOrigins = new List<string>
     "http://localhost:5173",
     "http://127.0.0.1:5173",
     "http://localhost:8080",
-    "http://127.0.0.1:8080"
+    "http://127.0.0.1:8080",
+    // Capacitor mobile app origins
+    "https://localhost",
+    "capacitor://localhost",
+    "ionic://localhost",
+    "http://localhost"
 };
 
 // Add configured origins if available
