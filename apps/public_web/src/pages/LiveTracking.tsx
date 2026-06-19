@@ -88,12 +88,21 @@ const LiveTracking: React.FC = () => {
   const lastUploadTimeRef = useRef<number>(0); // Timestamp of last backend upload
   const sendSnapshotRef = useRef(sendSnapshot);
   const sendLiveSnapshotRef = useRef(sendLiveSnapshot);
+  const liveSessionIdRef = useRef<string | null>(null); // Ref for GPS handler closure
 
   // Keep refs up to date
   useEffect(() => {
     sendSnapshotRef.current = sendSnapshot;
     sendLiveSnapshotRef.current = sendLiveSnapshot;
   }, [sendSnapshot, sendLiveSnapshot]);
+
+  // Sync liveSessionId state with ref for GPS handler
+  useEffect(() => {
+    liveSessionIdRef.current = liveSessionId;
+    if (liveSessionId) {
+      console.log('🔗 LiveSessionId ref updated:', liveSessionId);
+    }
+  }, [liveSessionId]);
 
   // Format time as HH:MM:SS
   const formatDuration = (seconds: number): string => {
@@ -325,9 +334,10 @@ const LiveTracking: React.FC = () => {
           console.log('✅ GPS point uploaded to activity backend');
 
           // Also send to LiveSession if available
-          if (liveSessionId) {
+          const currentLiveSessionId = liveSessionIdRef.current;
+          if (currentLiveSessionId) {
             try {
-              await sendLiveSnapshotRef.current(liveSessionId, {
+              await sendLiveSnapshotRef.current(currentLiveSessionId, {
                 latitude,
                 longitude,
                 gpsAccuracyMeters: newPoint.accuracy,
@@ -339,7 +349,7 @@ const LiveTracking: React.FC = () => {
                 cadenceRpm: undefined,
                 powerWatts: undefined
               });
-              console.log('✅ Live snapshot uploaded to backend (LiveSession ID:', liveSessionId, ')');
+              console.log('✅ Live snapshot uploaded to backend (LiveSession ID:', currentLiveSessionId, ')');
             } catch (liveErr) {
               console.error('⚠️ Failed to send live snapshot:', liveErr);
               // Try to continue anyway
