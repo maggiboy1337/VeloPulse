@@ -128,9 +128,14 @@ const LiveTracking: React.FC = () => {
   useEffect(() => {
     if (!id || !token) return;
 
+    let isMounted = true; // Prevent state updates after unmount
+
     const loadActivity = async () => {
       try {
         const details = await getActivityDetails(id);
+
+        if (!isMounted) return; // Component unmounted, abort
+
         setActivity({
           id: details.id,
           name: details.name,
@@ -143,16 +148,18 @@ const LiveTracking: React.FC = () => {
         const navigationState = location.state as { liveSessionId?: string } | null;
         if (navigationState?.liveSessionId) {
           setLiveSessionId(navigationState.liveSessionId);
-          console.log('LiveSession ID from navigation:', navigationState.liveSessionId);
+          console.log('✅ LiveSession ID from navigation:', navigationState.liveSessionId);
         } else {
           try {
             const sessions = await getMyActiveSessions();
+            if (!isMounted) return;
+
             const currentSession = sessions.find(s => s.activityId === id);
             if (currentSession) {
               setLiveSessionId(currentSession.id);
-              console.log('Found LiveSession ID from API:', currentSession.id);
+              console.log('✅ Found LiveSession ID from API:', currentSession.id);
             } else {
-              console.warn('No active LiveSession found for this activity');
+              console.warn('⚠️ No active LiveSession found for this activity');
             }
           } catch (err) {
             console.warn('Could not load LiveSession:', err);
@@ -191,11 +198,13 @@ const LiveTracking: React.FC = () => {
           setIsTracking(false);
         }
 
-        // Start GPS Queue Service
+        // Start GPS Queue Service ONCE
+        console.log('🚀 Starting GPS Queue Service...');
         gpsQueueService.start(id, token);
       } catch (err) {
+        if (!isMounted) return;
         setError('Fehler beim Laden der Aktivität');
-        console.error(err);
+        console.error('❌ Error loading activity:', err);
       }
     };
 
@@ -203,15 +212,19 @@ const LiveTracking: React.FC = () => {
 
     // Subscribe to sync status updates
     const unsubscribe = gpsQueueService.subscribe((status) => {
-      setSyncStatus(status);
+      if (isMounted) {
+        setSyncStatus(status);
+      }
     });
 
     // Cleanup on unmount
     return () => {
+      isMounted = false;
       unsubscribe();
       gpsQueueService.stop();
+      console.log('🛑 LiveTracking unmounted, GPS Queue Service stopped');
     };
-  }, [id, token, location.state, getActivityDetails, getMyActiveSessions]);
+  }, [id, token]); // REMOVED problematic dependencies!
 
   // GPS tracking
   useEffect(() => {

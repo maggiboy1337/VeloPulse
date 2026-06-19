@@ -26,6 +26,8 @@ class GPSQueueService {
   private currentActivityId: string | null = null;
   private token: string | null = null;
   private isStarted: boolean = false;
+  private failureCount: number = 0;
+  private maxFailures: number = 5;
 
   // Start queue service for an activity
   start(activityId: string, token: string) {
@@ -44,14 +46,15 @@ class GPSQueueService {
     this.currentActivityId = activityId;
     this.token = token;
     this.isStarted = true;
+    this.failureCount = 0; // Reset failure count on start
 
     // Initial sync attempt
     this.syncNow();
 
-    // Setup periodic sync every 30 seconds
+    // Setup periodic sync every 60 seconds (reduced from 30s to prevent overload)
     this.syncInterval = window.setInterval(() => {
       this.syncNow();
-    }, 30000); // 30 seconds
+    }, 60000); // 60 seconds
 
     console.log('GPS Queue Service started for activity:', activityId);
   }
@@ -112,6 +115,14 @@ class GPSQueueService {
       return false;
     }
 
+    // Circuit breaker: stop syncing after too many failures
+    if (this.failureCount >= this.maxFailures) {
+      console.error(`❌ GPS Queue Service stopped: ${this.failureCount} consecutive failures`);
+      console.error('   Please check network connection and backend status');
+      this.stop();
+      return false;
+    }
+
     // Store activityId locally to prevent issues if service is stopped during sync
     const activityId = this.currentActivityId;
 
@@ -125,6 +136,7 @@ class GPSQueueService {
 
       if (unsyncedPoints.length === 0) {
         console.log('No unsynced points to upload');
+        this.failureCount = 0; // Reset on success
         this.updateSyncStatus({
           isSyncing: false,
           unsyncedCount: 0,
@@ -159,13 +171,20 @@ class GPSQueueService {
 
         // Small delay between batches
         if (i + batchSize < unsyncedPoints.length) {
-          await new Promise(resolve => setTimeout(resolve, 100));
+          await new Promise(resolve => setTimeout(resolve, 500)); // Increased from 100ms to 500ms
         }
       }
 
       console.log(`Sync completed: ${successCount} successful, ${failureCount} failed`);
 
       const remainingCount = await indexedDBService.getUnsyncedCount(activityId);
+
+      // Update failure counter
+      if (failureCount > 0 && successCount === 0) {
+        this.failureCount++;
+      } else {
+        this.failureCount = 0; // Reset on any success
+      }
 
       this.updateSyncStatus({
         isSyncing: false,
@@ -180,6 +199,7 @@ class GPSQueueService {
       return failureCount === 0;
     } catch (error) {
       console.error('Sync error:', error);
+      this.failureCount++;
       this.updateSyncStatus({
         isSyncing: false
       });
