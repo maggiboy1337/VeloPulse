@@ -194,10 +194,10 @@ class ServiceWorkerService {
     }
 
     try {
-      // @ts-ignore - periodicSync is experimental and not in PermissionName type
-      const status = await navigator.permissions.query({
+      // Type assertion needed - periodicSync is experimental
+      const status = await (navigator.permissions.query as any)({
         name: 'periodic-background-sync'
-      });
+      } as PermissionDescriptor);
 
       if (status.state === 'granted') {
         // @ts-ignore
