@@ -40,6 +40,11 @@ jobs:
 
       - name: Build web assets
         working-directory: apps/public_web
+        env:
+          VITE_API_URL: https://www.velopulse.de
+          VITE_SIGNALR_HUB_URL: https://www.velopulse.de/hubs/live-tracking
+          VITE_TILE_URL: https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png
+          VITE_TILE_ATTRIBUTION: © OpenStreetMap contributors
         run: npm run build
 
       - name: Sync Capacitor
