@@ -413,3 +413,68 @@
     display: none; /* Hide on mobile to save space */
   }
 }
+
+/* ========================================
+   PHASE 1 & 2: Background Tracking Indicators
+   ======================================== */
+.tracking-indicators {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin-top: 0.75rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid #e2e8f0;
+}
+
+.tracking-indicators .indicator {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 0.75rem;
+  border-radius: 0.5rem;
+  font-size: 0.875rem;
+  font-weight: 500;
+  transition: all 0.2s ease;
+}
+
+.tracking-indicators .indicator.active {
+  background: #dcfce7;
+  color: #166534;
+  border: 1px solid #86efac;
+}
+
+.tracking-indicators .indicator.inactive {
+  background: #fef3c7;
+  color: #92400e;
+  border: 1px solid #fde68a;
+}
+
+.tracking-indicators .indicator.background-mode {
+  background: #dbeafe;
+  color: #1e40af;
+  border: 1px solid #93c5fd;
+  animation: pulse-background 2s ease-in-out infinite;
+}
+
+@keyframes pulse-background {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.8;
+  }
+}
+
+/* Mobile adjustments for indicators */
+@media (max-width: 768px) {
+  .tracking-indicators {
+    margin-top: 0.5rem;
+    padding-top: 0.5rem;
+  }
+
+  .tracking-indicators .indicator {
+    font-size: 0.75rem;
+    padding: 0.375rem 0.625rem;
+  }
+}
+

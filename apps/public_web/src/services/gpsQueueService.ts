@@ -1,5 +1,6 @@
 // GPS Queue Service for managing offline GPS point synchronization
 import { indexedDBService, StoredGPSPoint } from './indexedDBService';
+import { serviceWorkerService } from './serviceWorkerService';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
 
@@ -51,12 +52,14 @@ class GPSQueueService {
     // Initial sync attempt
     this.syncNow();
 
-    // Setup periodic sync every 60 seconds (reduced from 30s to prevent overload)
+    // Setup periodic sync every 30 seconds for faster background upload
     this.syncInterval = window.setInterval(() => {
       this.syncNow();
-    }, 60000); // 60 seconds
+    }, 30000); // 30 seconds (reduced from 60s for better background performance)
 
-    console.log('GPS Queue Service started for activity:', activityId);
+    console.log('🚀 GPS Queue Service started for activity:', activityId);
+    console.log('   Sync interval: 30 seconds');
+    console.log('   Background-ready: Yes');
   }
 
   // Stop queue service
@@ -97,6 +100,12 @@ class GPSQueueService {
       this.updateSyncStatus({ unsyncedCount: count });
 
       console.log('GPS point queued for offline sync');
+
+      // ========================================
+      // PHASE 3: Register Background Sync
+      // ========================================
+      // Try to register background sync for offline uploads
+      await serviceWorkerService.registerBackgroundSync('sync-gps-points');
     } catch (error) {
       console.error('Failed to queue GPS point:', error);
       throw error;
@@ -135,7 +144,7 @@ class GPSQueueService {
       const unsyncedPoints = await indexedDBService.getUnsyncedPoints(activityId);
 
       if (unsyncedPoints.length === 0) {
-        console.log('No unsynced points to upload');
+        console.log('✅ No unsynced points to upload');
         this.failureCount = 0; // Reset on success
         this.updateSyncStatus({
           isSyncing: false,
@@ -145,7 +154,8 @@ class GPSQueueService {
         return true;
       }
 
-      console.log(`Syncing ${unsyncedPoints.length} GPS points...`);
+      const bgMode = typeof document !== 'undefined' && document.visibilityState === 'hidden' ? '🌑 BACKGROUND' : '👁️ FOREGROUND';
+      console.log(`🔄 Syncing ${unsyncedPoints.length} GPS points [${bgMode}]...`);
 
       let successCount = 0;
       let failureCount = 0;
@@ -175,7 +185,7 @@ class GPSQueueService {
         }
       }
 
-      console.log(`Sync completed: ${successCount} successful, ${failureCount} failed`);
+      console.log(`✅ Sync completed [${bgMode}]: ${successCount} successful, ${failureCount} failed`);
 
       const remainingCount = await indexedDBService.getUnsyncedCount(activityId);
 

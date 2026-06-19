@@ -6,6 +6,7 @@ import 'leaflet/dist/leaflet.css';
 import { useActivities } from '../hooks/useActivities';
 import { useAuth } from '../contexts/AuthContext';
 import { gpsQueueService, SyncStatus } from '../services/gpsQueueService';
+import { serviceWorkerService } from '../services/serviceWorkerService';
 import './LiveTracking.css';
 
 // Custom icons
@@ -73,6 +74,8 @@ const LiveTracking: React.FC = () => {
   const [error, setError] = useState<string>('');
   const [gpsPermissionDenied, setGpsPermissionDenied] = useState(false);
   const [syncStatus, setSyncStatus] = useState<SyncStatus | null>(null);
+  const [wakeLockActive, setWakeLockActive] = useState(false);
+  const [isPageVisible, setIsPageVisible] = useState(true);
   const [stats, setStats] = useState({
     distance: 0,
     duration: 0,
@@ -82,6 +85,7 @@ const LiveTracking: React.FC = () => {
   });
 
   const watchIdRef = useRef<number | null>(null);
+  const wakeLockRef = useRef<WakeLockSentinel | null>(null);
   const startTimeRef = useRef<Date>(new Date());
   const maxSpeedRef = useRef<number>(0);
   const lastPointRef = useRef<GPSPoint | null>(null);
@@ -95,6 +99,98 @@ const LiveTracking: React.FC = () => {
     sendSnapshotRef.current = sendSnapshot;
     sendLiveSnapshotRef.current = sendLiveSnapshot;
   }, [sendSnapshot, sendLiveSnapshot]);
+
+  // ========================================
+  // PHASE 1: WAKE LOCK API
+  // Keep display awake during tracking
+  // ========================================
+  useEffect(() => {
+    if (!isTracking || isPaused) {
+      releaseWakeLock();
+      return;
+    }
+
+    requestWakeLock();
+
+    // Re-acquire wake lock when visibility changes
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible' && isTracking && !isPaused) {
+        requestWakeLock();
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      releaseWakeLock();
+    };
+  }, [isTracking, isPaused]);
+
+  // Request Wake Lock
+  const requestWakeLock = async () => {
+    if (!('wakeLock' in navigator)) {
+      console.warn('⚠️ Wake Lock API not supported');
+      return;
+    }
+
+    try {
+      // Release existing lock first
+      if (wakeLockRef.current) {
+        await wakeLockRef.current.release();
+      }
+
+      wakeLockRef.current = await navigator.wakeLock.request('screen');
+      setWakeLockActive(true);
+      console.log('🔒 Wake Lock activated - display will stay awake');
+
+      wakeLockRef.current.addEventListener('release', () => {
+        console.log('🔓 Wake Lock released');
+        setWakeLockActive(false);
+      });
+    } catch (err) {
+      console.error('❌ Failed to acquire Wake Lock:', err);
+      setWakeLockActive(false);
+    }
+  };
+
+  // Release Wake Lock
+  const releaseWakeLock = async () => {
+    if (wakeLockRef.current) {
+      try {
+        await wakeLockRef.current.release();
+        wakeLockRef.current = null;
+        setWakeLockActive(false);
+        console.log('🔓 Wake Lock manually released');
+      } catch (err) {
+        console.error('❌ Error releasing Wake Lock:', err);
+      }
+    }
+  };
+
+  // ========================================
+  // PHASE 2: VISIBILITY API
+  // Track page visibility for background operation
+  // ========================================
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      const visible = document.visibilityState === 'visible';
+      setIsPageVisible(visible);
+
+      if (visible) {
+        console.log('👁️ Page visible - normal tracking mode');
+      } else {
+        console.log('🌑 Page hidden - background tracking mode active');
+        console.log('   GPS will continue tracking in background');
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, []);
 
   // Sync liveSessionId state with ref for GPS handler
   useEffect(() => {
@@ -259,7 +355,11 @@ const LiveTracking: React.FC = () => {
     const handlePosition = async (position: GeolocationPosition) => {
       const { latitude, longitude, altitude, speed, accuracy } = position.coords;
       const timestamp = new Date(position.timestamp);
-      
+
+      // Log background status
+      const bgStatus = document.visibilityState === 'hidden' ? '🌑 BACKGROUND' : '👁️ FOREGROUND';
+      console.log(`📍 GPS Update [${bgStatus}]: lat=${latitude.toFixed(6)}, lon=${longitude.toFixed(6)}, acc=${accuracy?.toFixed(1)}m`);
+
       const newPoint: GPSPoint = {
         timestamp,
         latitude,
@@ -320,6 +420,7 @@ const LiveTracking: React.FC = () => {
 
       if (shouldUpload) {
         lastUploadTimeRef.current = now;
+        const uploadMode = document.visibilityState === 'hidden' ? 'BACKGROUND' : 'FOREGROUND';
 
         try {
           // Try direct upload first using ref to avoid re-renders
@@ -331,7 +432,7 @@ const LiveTracking: React.FC = () => {
             speedKmh: newPoint.speed,
             accuracyMeters: newPoint.accuracy
           });
-          console.log('✅ GPS point uploaded to activity backend');
+          console.log(`✅ GPS point uploaded [${uploadMode}] to activity backend`);
 
           // Also send to LiveSession if available
           const currentLiveSessionId = liveSessionIdRef.current;
@@ -349,7 +450,7 @@ const LiveTracking: React.FC = () => {
                 cadenceRpm: undefined,
                 powerWatts: undefined
               });
-              console.log('✅ Live snapshot uploaded to backend (LiveSession ID:', currentLiveSessionId, ')');
+              console.log(`✅ Live snapshot uploaded [${uploadMode}] (LiveSession ID: ${currentLiveSessionId})`);
             } catch (liveErr) {
               console.error('⚠️ Failed to send live snapshot:', liveErr);
               // Try to continue anyway
@@ -401,16 +502,16 @@ const LiveTracking: React.FC = () => {
       setError(errorMessage);
     };
 
-    console.log('Calling navigator.geolocation.watchPosition...');
+    console.log('🛰️ Starting GPS tracking (Background-ready)...');
 
-    // Start watching position
+    // Start watching position with optimized settings for background operation
     watchIdRef.current = navigator.geolocation.watchPosition(
       handlePosition,
       handleError,
       {
         enableHighAccuracy: true,
-        timeout: 10000,
-        maximumAge: 0
+        timeout: 30000, // Increased from 10s to 30s for better background reliability
+        maximumAge: 5000 // Allow cached position up to 5s old
       }
     );
 
@@ -440,10 +541,26 @@ const LiveTracking: React.FC = () => {
     return () => clearInterval(interval);
   }, [isTracking, isPaused]);
 
+  // ========================================
+  // HEARTBEAT FOR BACKGROUND TRACKING
+  // Logs status every 15 seconds to verify tracking is active
+  // ========================================
+  useEffect(() => {
+    if (!isTracking || isPaused) return;
+
+    const heartbeat = setInterval(() => {
+      const bgStatus = document.visibilityState === 'hidden' ? '🌑 BACKGROUND' : '👁️ FOREGROUND';
+      const wakeLockStatus = wakeLockActive ? '🔒 LOCKED' : '🔓 UNLOCKED';
+      console.log(`💓 Tracking Heartbeat [${bgStatus}] [${wakeLockStatus}]: Points=${gpsPoints.length}, Distance=${(stats.distance / 1000).toFixed(2)}km`);
+    }, 15000); // Every 15 seconds
+
+    return () => clearInterval(heartbeat);
+  }, [isTracking, isPaused, gpsPoints.length, stats.distance, wakeLockActive]);
+
   // Handle pause
   const handlePause = async () => {
     if (!id) return;
-    
+
     try {
       await pauseActivity(id);
       setIsTracking(false);
@@ -453,6 +570,24 @@ const LiveTracking: React.FC = () => {
       console.error(err);
     }
   };
+
+  // ========================================
+  // PHASE 4: NOTIFICATION UPDATES
+  // Update tracking notification every minute
+  // ========================================
+  useEffect(() => {
+    if (!isTracking || isPaused) return;
+
+    const notificationUpdate = setInterval(() => {
+      serviceWorkerService.showTrackingNotification({
+        points: gpsPoints.length,
+        distance: stats.distance,
+        duration: stats.duration
+      });
+    }, 60000); // Every 60 seconds
+
+    return () => clearInterval(notificationUpdate);
+  }, [isTracking, isPaused, gpsPoints.length, stats.distance, stats.duration]);
 
   // Handle resume
   const handleResume = async () => {
@@ -663,6 +798,18 @@ const LiveTracking: React.FC = () => {
             Genauigkeit: ±{gpsPoints[gpsPoints.length - 1].accuracy!.toFixed(0)}m
           </div>
         )}
+
+        {/* Background Tracking Indicators */}
+        <div className="tracking-indicators">
+          <div className={`indicator ${wakeLockActive ? 'active' : 'inactive'}`}>
+            {wakeLockActive ? '🔒 Display aktiv' : '🔓 Display-Sperre aus'}
+          </div>
+          {!isPageVisible && (
+            <div className="indicator background-mode">
+              🌙 Hintergrund-Modus aktiv
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Sync Status */}
