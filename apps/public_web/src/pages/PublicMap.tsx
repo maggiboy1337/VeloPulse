@@ -277,8 +277,8 @@ const PublicMap: React.FC = () => {
                               {formatDistance(session.currentSnapshot.distanceCompletedMeters)}
                             </span>
                           </div>
-                          
-                          {session.currentSnapshot.speedKmh !== undefined && (
+
+                          {session.currentSnapshot.speedKmh !== undefined && session.currentSnapshot.speedKmh !== null && (
                             <div className="popup-stat">
                               <span className="stat-label">Geschwindigkeit</span>
                               <span className="stat-value">
@@ -286,14 +286,14 @@ const PublicMap: React.FC = () => {
                               </span>
                             </div>
                           )}
-                          
+
                           <div className="popup-stat">
                             <span className="stat-label">Dauer</span>
                             <span className="stat-value">
                               {calculateDuration(session.startedAt)}
                             </span>
                           </div>
-                          
+
                           {session.currentSnapshot.heartRateBpm && (
                             <div className="popup-stat">
                               <span className="stat-label">Puls</span>
@@ -302,8 +302,8 @@ const PublicMap: React.FC = () => {
                               </span>
                             </div>
                           )}
-                          
-                          {session.currentSnapshot.routeProgressPercent !== undefined && (
+
+                          {session.currentSnapshot.routeProgressPercent !== undefined && session.currentSnapshot.routeProgressPercent !== null && (
                             <div className="popup-stat">
                               <span className="stat-label">Route</span>
                               <span className="stat-value">
@@ -381,7 +381,7 @@ const PublicMap: React.FC = () => {
                         {formatDistance(session.currentSnapshot.distanceCompletedMeters)}
                       </div>
 
-                      {session.currentSnapshot.speedKmh !== undefined && (
+                      {session.currentSnapshot.speedKmh !== undefined && session.currentSnapshot.speedKmh !== null && (
                         <div className="session-stat">
                           <span className="icon">⚡</span>
                           {session.currentSnapshot.speedKmh.toFixed(1)} km/h
@@ -395,7 +395,7 @@ const PublicMap: React.FC = () => {
                         </div>
                       )}
 
-                      {session.currentSnapshot.routeProgressPercent !== undefined && (
+                      {session.currentSnapshot.routeProgressPercent !== undefined && session.currentSnapshot.routeProgressPercent !== null && (
                         <div className="session-stat">
                           <span className="icon">🛣️</span>
                           {session.currentSnapshot.routeProgressPercent.toFixed(0)}%
