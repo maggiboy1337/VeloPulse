@@ -1,8 +1,10 @@
+using LiveTracking.Api.Hubs;
 using LiveTracking.Application.DTOs.Activities;
 using LiveTracking.Domain.Entities;
 using LiveTracking.Infrastructure.Data;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.SignalR;
 using Microsoft.EntityFrameworkCore;
 using System.Security.Claims;
 
@@ -14,10 +16,12 @@ namespace LiveTracking.Api.Controllers;
 public class ActivitiesController : ControllerBase
 {
     private readonly ApplicationDbContext _context;
+    private readonly IHubContext<LiveTrackingHub> _hubContext;
 
-    public ActivitiesController(ApplicationDbContext context)
+    public ActivitiesController(ApplicationDbContext context, IHubContext<LiveTrackingHub> hubContext)
     {
         _context = context;
+        _hubContext = hubContext;
     }
 
     [HttpPost]
@@ -229,6 +233,24 @@ public class ActivitiesController : ControllerBase
             activity.MaxSpeedKmh = speeds.Any() ? speeds.Max() : null;
             activity.AverageHeartRateBpm = heartRates.Any() ? (int)heartRates.Average() : null;
             activity.MaxHeartRateBpm = heartRates.Any() ? heartRates.Max() : null;
+        }
+
+        // WICHTIG: Auch die zugehörige LiveSession beenden, falls vorhanden
+        var liveSession = await _context.LiveSessions
+            .FirstOrDefaultAsync(ls => ls.ActivityId == id && ls.UserId == userId && ls.EndedAt == null);
+
+        if (liveSession != null)
+        {
+            liveSession.EndedAt = DateTime.UtcNow;
+            liveSession.UpdatedAt = DateTime.UtcNow;
+            Console.WriteLine($"✅ LiveSession {liveSession.Id} automatisch beendet (Activity: {id})");
+
+            // SignalR: Benachrichtigung an öffentliche Karte senden
+            if (liveSession.IsPublic)
+            {
+                await _hubContext.SendLiveSessionEnded(liveSession.PublicSessionId);
+                Console.WriteLine($"📡 SignalR: LiveSession beendet gesendet (PublicSessionId: {liveSession.PublicSessionId})");
+            }
         }
 
         await _context.SaveChangesAsync();
