@@ -1,0 +1,6 @@
+# Ignoriere APK-Dateien (zu groß für Git)
+*.apk
+
+# Behalte README und .gitkeep
+!README.md
+!.gitkeep

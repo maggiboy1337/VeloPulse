@@ -1,0 +1,8 @@
+# APK Placeholder
+
+Kopiere die neueste APK als `velopulse-latest.apk` in diesen Ordner.
+
+Die APK kann von GitHub Actions heruntergeladen werden:
+https://github.com/maggiboy1337/VeloPulse/actions
+
+Workflow: "Build Android APK" → Latest run → Artifacts → velopulse-debug-apk
