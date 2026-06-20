@@ -4,9 +4,7 @@ on:
   push:
     branches:
       - main
-    paths:
-      - 'apps/public_web/**'
-      - '.github/workflows/android-build.yml'
+    # Trigger bei allen Änderungen (keine paths-Filter mehr)
   workflow_dispatch: # Manual trigger
 
 jobs:
