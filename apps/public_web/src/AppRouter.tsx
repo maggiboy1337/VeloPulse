@@ -12,6 +12,7 @@ import { CompletedActivities } from './pages/CompletedActivities';
 import { ActivityDetail } from './pages/ActivityDetail';
 import { Statistics } from './pages/Statistics';
 import { Settings } from './pages/Settings';
+import { AppDownload } from './pages/AppDownload';
 
 // Private Route Wrapper
 function PrivateRoute({ children }: { children: React.ReactNode }) {
@@ -58,6 +59,7 @@ export function AppRouter() {
                   <Route path="/activities/:id" element={<ActivityDetail />} />
                   <Route path="/statistics" element={<Statistics />} />
                   <Route path="/settings" element={<Settings />} />
+                  <Route path="/app-download" element={<AppDownload />} />
 
                   {/* Fallback redirect */}
                   <Route path="*" element={<Navigate to="/dashboard" />} />

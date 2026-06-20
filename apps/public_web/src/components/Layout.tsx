@@ -21,6 +21,7 @@ export function Layout({ children }: LayoutProps) {
     { path: '/routes', icon: '🗺️', label: 'Gespeicherte Strecken' },
     { path: '/activities', icon: '📈', label: 'Gefahrene Routen' },
     { path: '/statistics', icon: '📉', label: 'Statistiken' },
+    { path: '/app-download', icon: '📱', label: 'Android App' },
     { path: '/settings', icon: '⚙️', label: 'Einstellungen' },
   ];
 

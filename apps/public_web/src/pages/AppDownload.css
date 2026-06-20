@@ -1,0 +1,575 @@
+.app-download {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 20px;
+}
+
+/* Page Header */
+.page-header {
+  text-align: center;
+  margin-bottom: 40px;
+}
+
+.page-header h1 {
+  font-size: 2.5rem;
+  margin: 0 0 10px 0;
+  color: #2d3748;
+}
+
+.page-subtitle {
+  font-size: 1.1rem;
+  color: #718096;
+  margin: 0;
+}
+
+/* Loading & Error States */
+.loading-state,
+.error-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 400px;
+  gap: 20px;
+}
+
+.spinner {
+  width: 50px;
+  height: 50px;
+  border: 4px solid #e2e8f0;
+  border-top: 4px solid #667eea;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+.spinner-small {
+  display: inline-block;
+  width: 16px;
+  height: 16px;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  border-top: 2px solid white;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+  margin-right: 8px;
+}
+
+.error-icon {
+  font-size: 4rem;
+}
+
+.error-state h2 {
+  margin: 0;
+  color: #e53e3e;
+}
+
+/* Hero Section */
+.download-hero {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  border-radius: 16px;
+  padding: 60px 40px;
+  text-align: center;
+  color: white;
+  margin-bottom: 40px;
+  box-shadow: 0 10px 30px rgba(102, 126, 234, 0.3);
+}
+
+.hero-content {
+  max-width: 600px;
+  margin: 0 auto;
+}
+
+.app-icon-large {
+  font-size: 6rem;
+  margin-bottom: 20px;
+}
+
+.download-hero h2 {
+  font-size: 2.5rem;
+  margin: 0 0 15px 0;
+}
+
+.hero-description {
+  font-size: 1.2rem;
+  opacity: 0.95;
+  margin: 0;
+}
+
+/* Version Info Card */
+.version-info-card {
+  background: white;
+  border-radius: 12px;
+  padding: 30px;
+  margin-bottom: 30px;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.1);
+}
+
+.card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 25px;
+  padding-bottom: 20px;
+  border-bottom: 2px solid #e2e8f0;
+}
+
+.card-header h3 {
+  margin: 0;
+  font-size: 1.5rem;
+  color: #2d3748;
+}
+
+.status-badge {
+  padding: 8px 16px;
+  border-radius: 20px;
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+.status-badge.available {
+  background: #c6f6d5;
+  color: #22543d;
+}
+
+.status-badge.unavailable {
+  background: #fed7d7;
+  color: #742a2a;
+}
+
+.version-details {
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+  margin-bottom: 25px;
+}
+
+.detail-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px;
+  background: #f7fafc;
+  border-radius: 8px;
+}
+
+.detail-label {
+  font-weight: 600;
+  color: #4a5568;
+}
+
+.detail-value {
+  color: #2d3748;
+  font-weight: 500;
+}
+
+/* Download Button */
+.btn-download-primary {
+  width: 100%;
+  padding: 18px 30px;
+  font-size: 1.2rem;
+  font-weight: 600;
+  color: white;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  border: none;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+}
+
+.btn-download-primary:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 20px rgba(102, 126, 234, 0.4);
+}
+
+.btn-download-primary:active:not(:disabled) {
+  transform: translateY(0);
+}
+
+.btn-download-primary:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+
+.btn-download-primary.downloading {
+  background: #4c51bf;
+}
+
+/* Unavailable Message */
+.unavailable-message {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+  padding: 20px;
+  background: #fff5f5;
+  border: 1px solid #feb2b2;
+  border-radius: 8px;
+  color: #742a2a;
+}
+
+.warning-icon {
+  font-size: 2rem;
+}
+
+/* Changelog */
+.changelog-card {
+  background: white;
+  border-radius: 12px;
+  padding: 30px;
+  margin-bottom: 30px;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.1);
+}
+
+.changelog-card h3 {
+  margin: 0 0 20px 0;
+  font-size: 1.5rem;
+  color: #2d3748;
+}
+
+.changelog-content {
+  background: #f7fafc;
+  border-radius: 8px;
+  padding: 20px;
+}
+
+.changelog-content pre {
+  white-space: pre-wrap;
+  word-wrap: break-word;
+  margin: 0;
+  font-family: inherit;
+  line-height: 1.8;
+  color: #2d3748;
+}
+
+/* Features Grid */
+.features-section {
+  background: white;
+  border-radius: 12px;
+  padding: 30px;
+  margin-bottom: 30px;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.1);
+}
+
+.features-section h3 {
+  margin: 0 0 25px 0;
+  font-size: 1.5rem;
+  color: #2d3748;
+}
+
+.features-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 20px;
+}
+
+.feature-card {
+  padding: 25px;
+  background: linear-gradient(135deg, #f7fafc 0%, #edf2f7 100%);
+  border-radius: 10px;
+  transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+
+.feature-card:hover {
+  transform: translateY(-5px);
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.1);
+}
+
+.feature-icon {
+  font-size: 2.5rem;
+  margin-bottom: 15px;
+}
+
+.feature-card h4 {
+  margin: 0 0 10px 0;
+  font-size: 1.1rem;
+  color: #2d3748;
+}
+
+.feature-card p {
+  margin: 0;
+  color: #718096;
+  line-height: 1.6;
+}
+
+/* Installation Guide */
+.installation-guide {
+  background: white;
+  border-radius: 12px;
+  padding: 30px;
+  margin-bottom: 30px;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.1);
+}
+
+.installation-guide h3 {
+  margin: 0 0 25px 0;
+  font-size: 1.5rem;
+  color: #2d3748;
+}
+
+.guide-steps {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.step {
+  display: flex;
+  gap: 20px;
+  padding: 20px;
+  background: #f7fafc;
+  border-radius: 10px;
+}
+
+.step-number {
+  flex-shrink: 0;
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  font-weight: bold;
+  font-size: 1.2rem;
+  border-radius: 50%;
+}
+
+.step-content h4 {
+  margin: 0 0 8px 0;
+  color: #2d3748;
+  font-size: 1.1rem;
+}
+
+.step-content p {
+  margin: 0;
+  color: #718096;
+  line-height: 1.6;
+}
+
+/* Requirements Card */
+.requirements-card {
+  background: white;
+  border-radius: 12px;
+  padding: 30px;
+  margin-bottom: 30px;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.1);
+}
+
+.requirements-card h3 {
+  margin: 0 0 20px 0;
+  font-size: 1.5rem;
+  color: #2d3748;
+}
+
+.requirements-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.requirement {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+  background: #f7fafc;
+  border-radius: 8px;
+  color: #2d3748;
+}
+
+.requirement-icon {
+  color: #48bb78;
+  font-weight: bold;
+  font-size: 1.2rem;
+}
+
+/* FAQ Section */
+.faq-section {
+  background: white;
+  border-radius: 12px;
+  padding: 30px;
+  margin-bottom: 30px;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.1);
+}
+
+.faq-section h3 {
+  margin: 0 0 25px 0;
+  font-size: 1.5rem;
+  color: #2d3748;
+}
+
+.faq-item {
+  padding: 20px;
+  background: #f7fafc;
+  border-radius: 8px;
+  margin-bottom: 15px;
+}
+
+.faq-item:last-child {
+  margin-bottom: 0;
+}
+
+.faq-item h4 {
+  margin: 0 0 10px 0;
+  color: #2d3748;
+  font-size: 1.1rem;
+}
+
+.faq-item p {
+  margin: 0;
+  color: #718096;
+  line-height: 1.6;
+}
+
+/* Support Section */
+.support-section {
+  background: white;
+  border-radius: 12px;
+  padding: 30px;
+  text-align: center;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.1);
+}
+
+.support-section h3 {
+  margin: 0 0 15px 0;
+  font-size: 1.5rem;
+  color: #2d3748;
+}
+
+.support-section p {
+  margin: 0 0 20px 0;
+  color: #718096;
+}
+
+.support-links {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 15px;
+}
+
+.support-link {
+  padding: 12px 24px;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  text-decoration: none;
+  border-radius: 8px;
+  font-weight: 600;
+  transition: all 0.3s ease;
+}
+
+.support-link:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 5px 15px rgba(102, 126, 234, 0.3);
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+  .app-download {
+    padding: 15px;
+  }
+
+  .page-header h1 {
+    font-size: 2rem;
+  }
+
+  .download-hero {
+    padding: 40px 20px;
+  }
+
+  .download-hero h2 {
+    font-size: 1.8rem;
+  }
+
+  .app-icon-large {
+    font-size: 4rem;
+  }
+
+  .features-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .step {
+    flex-direction: column;
+    text-align: center;
+  }
+
+  .step-number {
+    margin: 0 auto;
+  }
+
+  .detail-row {
+    flex-direction: column;
+    gap: 8px;
+    text-align: center;
+  }
+
+  .support-links {
+    flex-direction: column;
+  }
+
+  .support-link {
+    width: 100%;
+  }
+}
+
+/* Dark Mode Support (optional) */
+@media (prefers-color-scheme: dark) {
+  .app-download {
+    color: #e2e8f0;
+  }
+
+  .page-header h1,
+  .card-header h3,
+  .features-section h3,
+  .installation-guide h3,
+  .requirements-card h3,
+  .faq-section h3,
+  .support-section h3,
+  .feature-card h4,
+  .step-content h4,
+  .faq-item h4,
+  .detail-value {
+    color: #e2e8f0;
+  }
+
+  .page-subtitle,
+  .feature-card p,
+  .step-content p,
+  .faq-item p,
+  .support-section p,
+  .requirement,
+  .detail-label {
+    color: #a0aec0;
+  }
+
+  .version-info-card,
+  .changelog-card,
+  .features-section,
+  .installation-guide,
+  .requirements-card,
+  .faq-section,
+  .support-section {
+    background: #2d3748;
+  }
+
+  .feature-card,
+  .step,
+  .requirement,
+  .faq-item,
+  .detail-row {
+    background: #1a202c;
+  }
+
+  .changelog-content {
+    background: #1a202c;
+    color: #e2e8f0;
+  }
+}
