@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { MapContainer, TileLayer, Marker, Popup, Polyline, useMap } from 'react-leaflet';
+import { MapContainer, TileLayer, Marker, Popup, Polyline, useMap, useMapEvents } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import './PublicMap.css';
@@ -17,25 +17,78 @@ const activeUserIcon = new L.Icon({
   shadowSize: [41, 41]
 });
 
-// Component to fit map to all markers
-function MapBounds({ sessions }: { sessions: PublicSession[] }) {
+const highlightedUserIcon = new L.Icon({
+  iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-green.png',
+  shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png',
+  iconSize: [32, 52],
+  iconAnchor: [16, 52],
+  popupAnchor: [1, -44],
+  shadowSize: [52, 52]
+});
+
+// Component for auto-follow and user interaction detection
+function MapController({ 
+  highlightedSession, 
+  sessions,
+  onDisableAutoFollow 
+}: { 
+  highlightedSession: string | null;
+  sessions: PublicSession[];
+  onDisableAutoFollow: () => void;
+}) {
   const map = useMap();
-  
-  useEffect(() => {
-    if (sessions.length > 0) {
-      const validSessions = sessions.filter(s => s.currentSnapshot);
-      if (validSessions.length > 0) {
-        const bounds = L.latLngBounds(
-          validSessions.map(s => [
-            s.currentSnapshot!.latitude,
-            s.currentSnapshot!.longitude
-          ])
-        );
-        map.fitBounds(bounds, { padding: [50, 50] });
+  const isAutoFollowingRef = useRef(false);
+  const lastPositionRef = useRef<{lat: number, lng: number} | null>(null);
+
+  // Detect user interactions
+  useMapEvents({
+    zoomstart: () => {
+      if (isAutoFollowingRef.current) {
+        console.log('🛑 User zoomed - disabling auto-follow');
+        onDisableAutoFollow();
+      }
+    },
+    dragstart: () => {
+      if (isAutoFollowingRef.current) {
+        console.log('🛑 User dragged - disabling auto-follow');
+        onDisableAutoFollow();
       }
     }
-  }, [sessions, map]);
-  
+  });
+
+  useEffect(() => {
+    if (highlightedSession) {
+      const session = sessions.find(s => s.publicSessionId === highlightedSession);
+      if (session?.currentSnapshot) {
+        const { latitude, longitude } = session.currentSnapshot;
+        const newPos = { lat: latitude, lng: longitude };
+
+        // Check if this is initial zoom or position update
+        const isInitialZoom = !lastPositionRef.current;
+        const hasPositionChanged = lastPositionRef.current && 
+          (Math.abs(lastPositionRef.current.lat - latitude) > 0.0001 || 
+           Math.abs(lastPositionRef.current.lng - longitude) > 0.0001);
+
+        if (isInitialZoom) {
+          // Initial zoom when session is highlighted
+          console.log('🎯 Initial zoom to highlighted session');
+          map.setView([latitude, longitude], 15, { animate: true });
+          isAutoFollowingRef.current = true;
+        } else if (hasPositionChanged && isAutoFollowingRef.current) {
+          // Follow updates
+          console.log('🚴 Following user movement');
+          map.panTo([latitude, longitude], { animate: true, duration: 1 });
+        }
+
+        lastPositionRef.current = newPos;
+      }
+    } else {
+      // Reset when no session is highlighted
+      isAutoFollowingRef.current = false;
+      lastPositionRef.current = null;
+    }
+  }, [highlightedSession, sessions, map]);
+
   return null;
 }
 
@@ -79,7 +132,8 @@ const PublicMap: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string>('');
   const [lastUpdate, setLastUpdate] = useState<Date>(new Date());
-  const [selectedSession, setSelectedSession] = useState<string | null>(null);
+  const [highlightedSession, setHighlightedSession] = useState<string | null>(null);
+  const [autoFollowEnabled, setAutoFollowEnabled] = useState(false);
 
   // Fetch public sessions
   const fetchSessions = async () => {
@@ -147,12 +201,33 @@ const PublicMap: React.FC = () => {
     const updateTime = new Date(timestamp);
     const now = new Date();
     const diffSeconds = Math.floor((now.getTime() - updateTime.getTime()) / 1000);
-    
+
     if (diffSeconds < 60) {
       return `vor ${diffSeconds}s`;
     }
     const diffMinutes = Math.floor(diffSeconds / 60);
     return `vor ${diffMinutes}min`;
+  };
+
+  // Handle marker click
+  const handleMarkerClick = (sessionId: string) => {
+    if (highlightedSession === sessionId) {
+      // Deselect if already highlighted
+      console.log('❌ Deselecting session:', sessionId);
+      setHighlightedSession(null);
+      setAutoFollowEnabled(false);
+    } else {
+      // Highlight new session
+      console.log('✅ Highlighting session:', sessionId);
+      setHighlightedSession(sessionId);
+      setAutoFollowEnabled(true);
+    }
+  };
+
+  // Disable auto-follow on user interaction
+  const handleDisableAutoFollow = () => {
+    console.log('🛑 Auto-follow disabled by user interaction');
+    setAutoFollowEnabled(false);
   };
 
   if (loading) {
@@ -209,6 +284,24 @@ const PublicMap: React.FC = () => {
       <div className="public-map-content">
         {/* Map */}
         <div className="map-section">
+          {/* Auto-Follow Indicator */}
+          {highlightedSession && autoFollowEnabled && (
+            <div className="auto-follow-indicator">
+              <span className="auto-follow-icon">👁️</span>
+              <span className="auto-follow-text">Auto-Follow aktiv</span>
+              <button 
+                className="auto-follow-close"
+                onClick={() => {
+                  setHighlightedSession(null);
+                  setAutoFollowEnabled(false);
+                }}
+                title="Auto-Follow beenden"
+              >
+                ✕
+              </button>
+            </div>
+          )}
+
           <MapContainer
             center={[48.1351, 11.5820]} // München als Default
             zoom={11}
@@ -221,56 +314,47 @@ const PublicMap: React.FC = () => {
             
             {/* User markers and routes */}
             {sessions.map(session => {
-              console.log('🗺️ Processing session for map:', session.publicSessionId, {
-                hasSnapshot: !!session.currentSnapshot,
-                snapshot: session.currentSnapshot,
-                hasRoutePoints: session.routePoints?.length || 0,
-                hasActivityPoints: session.activityPoints?.length || 0
-              });
-
               if (!session.currentSnapshot) {
-                console.log('⚠️ No snapshot for session:', session.publicSessionId);
                 return null;
               }
 
               const { latitude, longitude } = session.currentSnapshot;
-              console.log('📍 Marker position:', { 
-                latitude, 
-                longitude, 
-                sessionId: session.publicSessionId,
-                routePoints: session.routePoints?.length || 0,
-                activityPoints: session.activityPoints?.length || 0
-              });
+              const isHighlighted = highlightedSession === session.publicSessionId;
 
               return (
                 <React.Fragment key={session.publicSessionId}>
-                  {/* Route polyline if available (planned route - gray dashed) */}
-                  {session.routePoints && session.routePoints.length > 0 && (
-                    <Polyline
-                      positions={session.routePoints.map(p => [p.latitude, p.longitude])}
-                      color="#94a3b8"
-                      weight={3}
-                      opacity={0.5}
-                      dashArray="5, 10"
-                    />
-                  )}
+                  {/* Only show routes when session is highlighted */}
+                  {isHighlighted && (
+                    <>
+                      {/* Route polyline if available (planned route - gray dashed) */}
+                      {session.routePoints && session.routePoints.length > 0 && (
+                        <Polyline
+                          positions={session.routePoints.map(p => [p.latitude, p.longitude])}
+                          color="#94a3b8"
+                          weight={3}
+                          opacity={0.5}
+                          dashArray="5, 10"
+                        />
+                      )}
 
-                  {/* Activity points polyline (actual GPS track - blue solid) */}
-                  {session.activityPoints && session.activityPoints.length > 0 && (
-                    <Polyline
-                      positions={session.activityPoints.map(p => [p.latitude, p.longitude])}
-                      color="#667eea"
-                      weight={4}
-                      opacity={0.8}
-                    />
+                      {/* Activity points polyline (actual GPS track - blue solid) */}
+                      {session.activityPoints && session.activityPoints.length > 0 && (
+                        <Polyline
+                          positions={session.activityPoints.map(p => [p.latitude, p.longitude])}
+                          color="#667eea"
+                          weight={4}
+                          opacity={0.8}
+                        />
+                      )}
+                    </>
                   )}
 
                   {/* User marker */}
                   <Marker
                     position={[latitude, longitude]}
-                    icon={activeUserIcon}
+                    icon={isHighlighted ? highlightedUserIcon : activeUserIcon}
                     eventHandlers={{
-                      click: () => setSelectedSession(session.publicSessionId)
+                      click: () => handleMarkerClick(session.publicSessionId)
                     }}
                   >
                     <Popup>
@@ -344,8 +428,12 @@ const PublicMap: React.FC = () => {
               );
             })}
             
-            {/* Auto-fit bounds */}
-            <MapBounds sessions={sessions} />
+            {/* Map controller for auto-follow */}
+            <MapController 
+              highlightedSession={autoFollowEnabled ? highlightedSession : null}
+              sessions={sessions}
+              onDisableAutoFollow={handleDisableAutoFollow}
+            />
           </MapContainer>
         </div>
 
@@ -369,11 +457,15 @@ const PublicMap: React.FC = () => {
                 <div>Ohne GPS: {sessions.filter(s => !s.currentSnapshot).length}</div>
               </div>
               <div className="sessions-list">
-              {sessions.map(session => (
+              {sessions.map(session => {
+                const isHighlighted = highlightedSession === session.publicSessionId;
+                const isAutoFollowing = isHighlighted && autoFollowEnabled;
+
+                return (
                 <div
                   key={session.publicSessionId}
-                  className={`session-card ${selectedSession === session.publicSessionId ? 'selected' : ''}`}
-                  onClick={() => setSelectedSession(session.publicSessionId)}
+                  className={`session-card ${isHighlighted ? 'selected' : ''} ${isAutoFollowing ? 'auto-following' : ''}`}
+                  onClick={() => handleMarkerClick(session.publicSessionId)}
                 >
                   <div className="session-card-header">
                     {session.profileImageUrl ? (
@@ -439,7 +531,8 @@ const PublicMap: React.FC = () => {
                     </div>
                   )}
                 </div>
-              ))}
+              );
+            })}
             </div>
             </>
           )}
