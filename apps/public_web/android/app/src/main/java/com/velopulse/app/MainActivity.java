@@ -9,7 +9,7 @@ public class MainActivity extends BridgeActivity {
     private PowerManager.WakeLock wakeLock;
 
     @Override
-    protected void onCreate(Bundle savedInstanceState) {
+    public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
 
         // Keep WebView alive in background
@@ -21,7 +21,7 @@ public class MainActivity extends BridgeActivity {
     }
 
     @Override
-    protected void onResume() {
+    public void onResume() {
         super.onResume();
 
         // Keep CPU awake for background tracking
@@ -31,7 +31,7 @@ public class MainActivity extends BridgeActivity {
     }
 
     @Override
-    protected void onPause() {
+    public void onPause() {
         super.onPause();
 
         // DO NOT release wake lock - keep running in background
@@ -39,7 +39,7 @@ public class MainActivity extends BridgeActivity {
     }
 
     @Override
-    protected void onDestroy() {
+    public void onDestroy() {
         super.onDestroy();
 
         // Release wake lock only when app is destroyed
