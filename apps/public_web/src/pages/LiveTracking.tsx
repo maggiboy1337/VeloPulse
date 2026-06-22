@@ -8,6 +8,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { gpsQueueService, SyncStatus } from '../services/gpsQueueService';
 import { serviceWorkerService } from '../services/serviceWorkerService';
 import { capacitorGpsService } from '../services/capacitorGpsService';
+import { backgroundHttpService } from '../services/backgroundHttpService';
 import './LiveTracking.css';
 
 // Custom icons
@@ -496,56 +497,51 @@ const LiveTracking: React.FC = () => {
         if (!activityId) return;
 
         try {
-          // Try direct upload first using ref to avoid re-renders
-          await sendSnapshotRef.current(activityId, {
-            timestamp: timestamp.toISOString(),
-            latitude,
-            longitude,
-            elevationMeters: newPoint.elevation,
-            speedKmh: newPoint.speed,
-            accuracyMeters: newPoint.accuracy
-          });
-          console.log(`✅ GPS point uploaded [${uploadMode}] to activity backend`);
-
-          // Also send to LiveSession if available
-          const currentLiveSessionId = liveSessionIdRef.current;
-          if (currentLiveSessionId) {
-            try {
-              await sendLiveSnapshotRef.current(currentLiveSessionId, {
-                latitude,
-                longitude,
-                gpsAccuracyMeters: newPoint.accuracy,
-                speedKmh: newPoint.speed,
-                distanceCompletedMeters: newDistance,
-                distanceRemainingMeters: undefined,
-                routeProgressPercent: undefined,
-                heartRateBpm: undefined,
-                cadenceRpm: undefined,
-                powerWatts: undefined
-              });
-              console.log(`✅ Live snapshot uploaded [${uploadMode}] (LiveSession ID: ${currentLiveSessionId})`);
-            } catch (liveErr) {
-              console.error('⚠️ Failed to send live snapshot:', liveErr);
-              // Try to continue anyway
-            }
-          } else {
-            console.warn('⚠️ No LiveSession ID available yet - snapshot not sent to live map');
-          }
-        } catch (err) {
-          console.warn('⚠️ Direct upload failed, queueing for offline sync:', err);
-          // Queue for offline sync
-          try {
-            await gpsQueueService.enqueue(activityId, {
+          // ⭐ NEU: Nutze Background HTTP Service für Capacitor
+          await backgroundHttpService.sendActivityPoint(
+            activityId,
+            token!, // Token aus AuthContext
+            {
               timestamp: timestamp.toISOString(),
               latitude,
               longitude,
               elevationMeters: newPoint.elevation,
               speedKmh: newPoint.speed,
               accuracyMeters: newPoint.accuracy
-            });
-          } catch (queueErr) {
-            console.error('❌ Failed to queue GPS point:', queueErr);
+            }
+          );
+          console.log(`✅ GPS point uploaded [${uploadMode}] via Background HTTP`);
+
+          // Also send to LiveSession if available
+          const currentLiveSessionId = liveSessionIdRef.current;
+          if (currentLiveSessionId) {
+            try {
+              await backgroundHttpService.sendLiveSnapshot(
+                currentLiveSessionId,
+                token!,
+                {
+                  latitude,
+                  longitude,
+                  gpsAccuracyMeters: newPoint.accuracy,
+                  speedKmh: newPoint.speed,
+                  distanceCompletedMeters: newDistance,
+                  distanceRemainingMeters: undefined,
+                  routeProgressPercent: undefined,
+                  heartRateBpm: undefined,
+                  cadenceRpm: undefined,
+                  powerWatts: undefined
+                }
+              );
+              console.log(`✅ Live snapshot uploaded [${uploadMode}] via Background HTTP`);
+            } catch (liveErr) {
+              console.error('⚠️ Failed to send live snapshot:', liveErr);
+            }
+          } else {
+            console.warn('⚠️ No LiveSession ID available yet - snapshot not sent to live map');
           }
+        } catch (err) {
+          console.error('❌ Background HTTP upload failed:', err);
+          // Keine Offline-Queue mehr (wie gewünscht)
         }
       } else {
         const remainingSeconds = (30 - timeSinceLastUpload / 1000).toFixed(0);
@@ -669,56 +665,51 @@ const LiveTracking: React.FC = () => {
       if (!activityId) return;
 
       try {
-        // Try direct upload first using ref to avoid re-renders
-        await sendSnapshotRef.current(activityId, {
-          timestamp: timestamp.toISOString(),
-          latitude,
-          longitude,
-          elevationMeters: newPoint.elevation,
-          speedKmh: newPoint.speed,
-          accuracyMeters: newPoint.accuracy
-        });
-        console.log(`✅ GPS point uploaded [${uploadMode}] to activity backend`);
-
-        // Also send to LiveSession if available
-        const currentLiveSessionId = liveSessionIdRef.current;
-        if (currentLiveSessionId) {
-          try {
-            await sendLiveSnapshotRef.current(currentLiveSessionId, {
-              latitude,
-              longitude,
-              gpsAccuracyMeters: newPoint.accuracy,
-              speedKmh: newPoint.speed,
-              distanceCompletedMeters: newDistance,
-              distanceRemainingMeters: undefined,
-              routeProgressPercent: undefined,
-              heartRateBpm: undefined,
-              cadenceRpm: undefined,
-              powerWatts: undefined
-            });
-            console.log(`✅ Live snapshot uploaded [${uploadMode}] (LiveSession ID: ${currentLiveSessionId})`);
-          } catch (liveErr) {
-            console.error('⚠️ Failed to send live snapshot:', liveErr);
-            // Try to continue anyway
-          }
-        } else {
-          console.warn('⚠️ No LiveSession ID available yet - snapshot not sent to live map');
-        }
-      } catch (err) {
-        console.warn('⚠️ Direct upload failed, queueing for offline sync:', err);
-        // Queue for offline sync
-        try {
-          await gpsQueueService.enqueue(activityId, {
+        // ⭐ NEU: Nutze Background HTTP Service für Capacitor
+        await backgroundHttpService.sendActivityPoint(
+          activityId,
+          token!, // Token aus AuthContext
+          {
             timestamp: timestamp.toISOString(),
             latitude,
             longitude,
             elevationMeters: newPoint.elevation,
             speedKmh: newPoint.speed,
             accuracyMeters: newPoint.accuracy
-          });
-        } catch (queueErr) {
-          console.error('❌ Failed to queue GPS point:', queueErr);
+          }
+        );
+        console.log(`✅ GPS point uploaded [${uploadMode}] via Background HTTP`);
+
+        // Also send to LiveSession if available
+        const currentLiveSessionId = liveSessionIdRef.current;
+        if (currentLiveSessionId) {
+          try {
+            await backgroundHttpService.sendLiveSnapshot(
+              currentLiveSessionId,
+              token!,
+              {
+                latitude,
+                longitude,
+                gpsAccuracyMeters: newPoint.accuracy,
+                speedKmh: newPoint.speed,
+                distanceCompletedMeters: newDistance,
+                distanceRemainingMeters: undefined,
+                routeProgressPercent: undefined,
+                heartRateBpm: undefined,
+                cadenceRpm: undefined,
+                powerWatts: undefined
+              }
+            );
+            console.log(`✅ Live snapshot uploaded [${uploadMode}] via Background HTTP`);
+          } catch (liveErr) {
+            console.error('⚠️ Failed to send live snapshot:', liveErr);
+          }
+        } else {
+          console.warn('⚠️ No LiveSession ID available yet - snapshot not sent to live map');
         }
+      } catch (err) {
+        console.error('❌ Background HTTP upload failed:', err);
+        // Keine Offline-Queue mehr (wie gewünscht)
       }
     } else {
       const remainingSeconds = (30 - timeSinceLastUpload / 1000).toFixed(0);
