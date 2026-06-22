@@ -481,12 +481,14 @@ const LiveTracking: React.FC = () => {
         };
       });
 
-      // Send to backend (with offline queue fallback)
-      // Upload every 30 seconds, or immediately for first GPS point
+      // Send to backend - EVENT-BASED UPLOAD
+      // ⭐ WICHTIG: Upload bei JEDEM GPS-Update (nicht timer-basiert)
+      // Timer funktionieren nicht zuverlässig im Android Background
       const now = Date.now();
       const timeSinceLastUpload = now - lastUploadTimeRef.current;
       const isFirstUpload = lastUploadTimeRef.current === 0;
-      const shouldUpload = isFirstUpload || timeSinceLastUpload >= 30000; // 30 seconds
+      // Spam-Schutz: Minimum 5 Sekunden zwischen Uploads
+      const shouldUpload = isFirstUpload || timeSinceLastUpload >= 5000;
 
       if (shouldUpload) {
         lastUploadTimeRef.current = now;
@@ -510,7 +512,7 @@ const LiveTracking: React.FC = () => {
               accuracyMeters: newPoint.accuracy
             }
           );
-          console.log(`✅ GPS point uploaded [${uploadMode}] via Background HTTP`);
+          console.log(`✅ GPS point uploaded [${uploadMode}] via Background HTTP (event-based)`);
 
           // Also send to LiveSession if available
           const currentLiveSessionId = liveSessionIdRef.current;
@@ -532,7 +534,7 @@ const LiveTracking: React.FC = () => {
                   powerWatts: undefined
                 }
               );
-              console.log(`✅ Live snapshot uploaded [${uploadMode}] via Background HTTP`);
+              console.log(`✅ Live snapshot uploaded [${uploadMode}] via Background HTTP (event-based)`);
             } catch (liveErr) {
               console.error('⚠️ Failed to send live snapshot:', liveErr);
             }
@@ -544,8 +546,8 @@ const LiveTracking: React.FC = () => {
           // Keine Offline-Queue mehr (wie gewünscht)
         }
       } else {
-        const remainingSeconds = (30 - timeSinceLastUpload / 1000).toFixed(0);
-        console.log(`⏱️ Next upload in ${remainingSeconds}s`);
+        const remainingSeconds = (5 - timeSinceLastUpload / 1000).toFixed(0);
+        console.log(`⏱️ Next upload possible in ${remainingSeconds}s (throttling)`);
       }
     };
 
