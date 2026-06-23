@@ -7,6 +7,18 @@ set -e  # Bei Fehler abbrechen
 
 echo "🚀 VeloPulse Deployment gestartet..."
 
+# Parse options
+BUILD_APK=false
+for arg in "$@"; do
+    case "$arg" in
+        --build-apk)
+            BUILD_APK=true
+            ;;
+        *)
+            ;;
+    esac
+done
+
 # Farben für Output
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
@@ -27,6 +39,36 @@ fi
 # 3. Alte Container stoppen und entfernen
 echo -e "${YELLOW}🛑 Stoppe alte Container...${NC}"
 docker-compose -f docker-compose.prod.yml down
+
+# Optional: Build Android APK before building images
+if [ "$BUILD_APK" = true ]; then
+    echo -e "${YELLOW}🔧 Baue Android APK (Option --build-apk aktiv)${NC}"
+    # call helper script in repo root; script will prepare web build and capacitor sync
+    if [ -f ./build-android-apk.sh ]; then
+        bash ./build-android-apk.sh || echo -e "${RED}⚠️ build-android-apk.sh returned non-zero (continue)${NC}"
+    else
+        echo -e "${RED}❌ build-android-apk.sh nicht gefunden im Repo-Root${NC}"
+    fi
+
+    # Try to run Gradle assembleRelease if android gradle wrapper exists
+    if [ -d "apps/public_web/android" ] && [ -f "apps/public_web/android/gradlew" ]; then
+        echo -e "${YELLOW}⚙️ Versuche Gradle assembleRelease in apps/public_web/android${NC}"
+        (cd apps/public_web/android && ./gradlew assembleRelease) || echo -e "${RED}⚠️ Gradle build fehlgeschlagen oder nicht konfiguriert${NC}"
+    else
+        echo -e "${YELLOW}ℹ️ Kein Gradle-Wrapper gefunden, überspringe nativen APK-Build${NC}"
+    fi
+
+    # If an APK was produced, copy it into backend/wwwroot/downloads
+    APK_PATH="apps/public_web/android/app/build/outputs/apk/release/app-release.apk"
+    if [ -f "$APK_PATH" ]; then
+        DEST_DIR="backend/LiveTracking.Api/wwwroot/downloads"
+        mkdir -p "$DEST_DIR"
+        cp "$APK_PATH" "$DEST_DIR/velopulse-latest.apk"
+        echo -e "${GREEN}✅ APK kopiert nach $DEST_DIR/velopulse-latest.apk${NC}"
+    else
+        echo -e "${YELLOW}⚠️ APK nicht gefunden unter $APK_PATH — evtl. manuell signieren/builden erforderlich${NC}"
+    fi
+fi
 
 # 4. Neue Images bauen
 echo -e "${YELLOW}🔨 Baue neue Docker Images...${NC}"

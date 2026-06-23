@@ -105,3 +105,23 @@ echo "🚀 After building:"
 echo "  1. Install: adb install -r android/app/build/outputs/apk/release/app-release.apk"
 echo "  2. Test: ./test-background-http.sh"
 echo ""
+echo "🔁 Optional: Copy built APK into backend/wwwroot/downloads for direct download"
+APK_SRC_ANDROID="android/app/build/outputs/apk/release/app-release.apk"
+APK_SRC_DEFAULT="android/app/build/outputs/apk/release/app-release.apk"
+APK_DEST="$(dirname "$0")/backend/LiveTracking.Api/wwwroot/downloads/velopulse-latest.apk"
+
+if [ -f "$APK_SRC_ANDROID" ]; then
+    echo "📦 Found APK at: $APK_SRC_ANDROID"
+    echo "📋 Copying APK to backend downloads: $APK_DEST"
+    cp "$APK_SRC_ANDROID" "$APK_DEST"
+    echo "✅ Copied APK to backend/wwwroot/downloads as velopulse-latest.apk"
+    # Also write a versioned copy
+    BUILD_DATE=$(date +%Y%m%d%H%M)
+    VERSIONED_DEST="$(dirname "$APK_DEST")/velopulse-${BUILD_DATE}.apk"
+    cp "$APK_SRC_ANDROID" "$VERSIONED_DEST"
+    echo "✅ Created versioned APK: $VERSIONED_DEST"
+else
+    echo "⚠️ APK not found at expected location: $APK_SRC_ANDROID"
+    echo "   If you built the APK elsewhere, run scripts/copy-apk-to-backend.ps1 (Windows) or copy it manually to backend/LiveTracking.Api/wwwroot/downloads/"
+fi
+
