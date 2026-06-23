@@ -99,9 +99,9 @@ export interface PermissionStatus {
   allGranted: boolean;
 }
 
-// Plugin registrieren
-const TrackingService = registerPlugin<TrackingServicePlugin>('TrackingServicePlugin', {
-  web: () => import('./web').then(m => new m.TrackingServiceWeb()),
-});
+// Plugin über Capacitor.Plugins aufrufen (für lokale Plugins)
+import { Capacitor } from '@capacitor/core';
+
+const TrackingService = Capacitor.Plugins.TrackingServicePlugin as TrackingServicePlugin;
 
 export default TrackingService;
