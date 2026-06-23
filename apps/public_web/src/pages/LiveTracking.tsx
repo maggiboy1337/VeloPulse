@@ -9,6 +9,7 @@ import { gpsQueueService, SyncStatus } from '../services/gpsQueueService';
 import { serviceWorkerService } from '../services/serviceWorkerService';
 import { capacitorGpsService } from '../services/capacitorGpsService';
 import { backgroundHttpService } from '../services/backgroundHttpService';
+import { nativeTrackingService } from '../services/nativeTrackingService';
 import './LiveTracking.css';
 
 // Custom icons
@@ -334,10 +335,72 @@ const LiveTracking: React.FC = () => {
     };
   }, [id, token]); // REMOVED problematic dependencies!
 
+  // ========================================
+  // ⭐ NATIVE ANDROID FOREGROUND SERVICE ⭐
+  // Verwendet nativen Service für GPS + Uploads
+  // Fallback auf capacitorGpsService/Browser wenn nicht verfügbar
+  // ========================================
+  useEffect(() => {
+    if (!isTracking || !id || !token) {
+      return;
+    }
+
+    // Check if native tracking service is available
+    const hasNativeService = nativeTrackingService.isAvailable();
+
+    if (hasNativeService) {
+      console.log('🚀 Using NATIVE ANDROID FOREGROUND SERVICE for GPS tracking');
+      console.log('   ✅ GPS works with locked display');
+      console.log('   ✅ Data uploads work in background');
+      console.log('   ✅ Service cannot be killed by system');
+
+      // Start native service
+      startNativeForegroundService();
+
+      // Subscribe to status updates
+      const unsubscribe = nativeTrackingService.subscribe((status) => {
+        console.log('📊 Native Service Status:', status);
+
+        // Update UI with native service data
+        if (status.lastLocation) {
+          const { latitude, longitude, speed, accuracy } = status.lastLocation;
+
+          setCurrentPosition([latitude, longitude]);
+
+          // Update stats
+          setStats(prev => ({
+            ...prev,
+            distance: status.totalDistance,
+            currentSpeed: speed || 0
+          }));
+        }
+      });
+
+      return () => {
+        console.log('🛑 Stopping native foreground service');
+        nativeTrackingService.stopTracking().catch(err => {
+          console.error('Error stopping native service:', err);
+        });
+        unsubscribe();
+      };
+    } else {
+      console.log('ℹ️ Native Foreground Service not available');
+      console.log('   Falling back to capacitorGpsService or browser GPS');
+      // Fallback wird durch den nächsten useEffect behandelt
+    }
+  }, [isTracking, id, token]);
+
   // GPS tracking - Hybrid: Native (Capacitor) or Browser fallback
+  // Wird nur verwendet wenn Native Foreground Service nicht verfügbar ist
   useEffect(() => {
     if (!isTracking || !id) {
       console.log('GPS tracking skipped - isTracking:', isTracking, 'id:', id);
+      return;
+    }
+
+    // Skip if native foreground service is handling tracking
+    if (nativeTrackingService.isAvailable()) {
+      console.log('✅ Native Foreground Service active - skipping fallback GPS');
       return;
     }
 
@@ -364,6 +427,38 @@ const LiveTracking: React.FC = () => {
       }
     };
   }, [isTracking, isPaused, id]);
+
+  // ========================================
+  // START NATIVE FOREGROUND SERVICE
+  // ========================================
+  const startNativeForegroundService = async () => {
+    if (!id || !token) {
+      console.error('❌ Cannot start native service: missing id or token');
+      return;
+    }
+
+    try {
+      const started = await nativeTrackingService.startTracking({
+        activityId: id,
+        authToken: token,
+        liveSessionId: liveSessionId || undefined,
+        updateIntervalMs: 5000, // 5 seconds
+        distanceFilterMeters: 5 // 5 meters
+      });
+
+      if (started) {
+        console.log('✅ Native Foreground Service started successfully');
+        console.log('   🔋 GPS tracking will continue with locked display');
+        console.log('   📤 Data uploads handled natively in background');
+      } else {
+        console.warn('⚠️ Native service could not be started');
+        setError('Native GPS Service konnte nicht gestartet werden');
+      }
+    } catch (error: any) {
+      console.error('❌ Failed to start native service:', error);
+      setError(`Native Service Fehler: ${error.message || 'Unbekannter Fehler'}`);
+    }
+  };
 
   // Start Native GPS tracking (Capacitor)
   const startNativeGpsTracking = async () => {
@@ -642,6 +737,11 @@ const LiveTracking: React.FC = () => {
     if (!id) return;
 
     try {
+      // Pause native service if available
+      if (nativeTrackingService.isAvailable()) {
+        await nativeTrackingService.pauseTracking();
+      }
+
       await pauseActivity(id);
       setIsTracking(false);
       setIsPaused(true);
@@ -674,6 +774,11 @@ const LiveTracking: React.FC = () => {
     if (!id) return;
 
     try {
+      // Resume native service if available
+      if (nativeTrackingService.isAvailable()) {
+        await nativeTrackingService.resumeTracking();
+      }
+
       await resumeActivity(id);
       setIsTracking(true);
       setIsPaused(false);
@@ -694,6 +799,12 @@ const LiveTracking: React.FC = () => {
 
     try {
       setIsTracking(false);
+
+      // Stop native service if available
+      if (nativeTrackingService.isAvailable()) {
+        await nativeTrackingService.stopTracking();
+      }
+
       await finishActivity(id);
       navigate(`/activities/${id}`);
     } catch (err) {

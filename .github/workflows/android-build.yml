@@ -1,4 +1,4 @@
-name: Build Android APK (Event-Based GPS)
+name: Build Android APK (Native Foreground Service)
 
 on:
   push:
@@ -18,7 +18,7 @@ jobs:
   build:
     name: Build APK
     runs-on: ubuntu-latest
-    
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -73,7 +73,7 @@ jobs:
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: velopulse-event-based-gps-${{ github.sha }}
+          name: velopulse-native-foreground-${{ github.sha }}
           path: apps/public_web/android/app/build/outputs/apk/debug/app-debug.apk
           retention-days: 30
 
@@ -82,22 +82,33 @@ jobs:
         run: |
           echo "✅ APK Build erfolgreich!" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "### Features in diesem Build:" >> $GITHUB_STEP_SUMMARY
-          echo "- ✅ Event-Based GPS Upload (5s throttle)" >> $GITHUB_STEP_SUMMARY
-          echo "- ✅ Background HTTP (Capacitor HTTP)" >> $GITHUB_STEP_SUMMARY
-          echo "- ✅ WakeLock in MainActivity" >> $GITHUB_STEP_SUMMARY
-          echo "- ✅ Works with locked display" >> $GITHUB_STEP_SUMMARY
+          echo "### 🚀 Native Android Foreground Service Implementation" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "### Download:" >> $GITHUB_STEP_SUMMARY
-          echo "APK: \`velopulse-event-based-gps-${{ github.sha }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "#### Features in diesem Build:" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ **Native Foreground Service** (Kotlin)" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ **GPS mit Fused Location Provider API**" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ **Native HTTP Uploads im Hintergrund**" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ **Permanente Notification**" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ **WakeLock für gesperrtes Display**" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ **Offline-Queue mit Retry**" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ **Android 12+ konform**" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ **Funktioniert wie Strava/Komoot**" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "### Testing:" >> $GITHUB_STEP_SUMMARY
-          echo "1. Install APK on device" >> $GITHUB_STEP_SUMMARY
-          echo "2. Start tracking" >> $GITHUB_STEP_SUMMARY
-          echo "3. Lock display" >> $GITHUB_STEP_SUMMARY
-          echo "4. Check logcat: \`adb logcat | grep 'event-based'\`" >> $GITHUB_STEP_SUMMARY
-          echo "5. Expected: Continuous uploads every 5-10s" >> $GITHUB_STEP_SUMMARY
-
+          echo "#### Download:" >> $GITHUB_STEP_SUMMARY
+          echo "APK: \`velopulse-native-foreground-${{ github.sha }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "#### Testing:" >> $GITHUB_STEP_SUMMARY
+          echo "1. \`adb install app-debug.apk\`" >> $GITHUB_STEP_SUMMARY
+          echo "2. Berechtigungen erteilen (Standort + Hintergrund)" >> $GITHUB_STEP_SUMMARY
+          echo "3. Tracking starten" >> $GITHUB_STEP_SUMMARY
+          echo "4. Display sperren" >> $GITHUB_STEP_SUMMARY
+          echo "5. Logcat: \`adb logcat | grep TrackingService\`" >> $GITHUB_STEP_SUMMARY
+          echo "6. Erwartung: Kontinuierliche GPS-Updates auch bei gesperrtem Display" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "#### Dokumentation:" >> $GITHUB_STEP_SUMMARY
+          echo "- Setup: \`docs/SETUP_NATIVE_TRACKING.md\`" >> $GITHUB_STEP_SUMMARY
+          echo "- Details: \`docs/NATIVE_TRACKING_SERVICE.md\`" >> $GITHUB_STEP_SUMMARY
+          echo "- Summary: \`docs/IMPLEMENTATION_SUMMARY.md\`" >> $GITHUB_STEP_SUMMARY
       - name: Create Release (on tag)
         if: startsWith(github.ref, 'refs/tags/')
         uses: softprops/action-gh-release@v1

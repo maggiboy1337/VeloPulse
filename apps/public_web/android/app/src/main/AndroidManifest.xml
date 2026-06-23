@@ -26,6 +26,14 @@
 
         </activity>
 
+        <!-- ⭐ Native Foreground Service für GPS Tracking -->
+        <service
+            android:name=".tracking.TrackingService"
+            android:enabled="true"
+            android:exported="false"
+            android:foregroundServiceType="location"
+            android:stopWithTask="false" />
+
         <provider
             android:name="androidx.core.content.FileProvider"
             android:authorities="${applicationId}.fileprovider"
@@ -37,18 +45,36 @@
         </provider>
     </application>
 
-    <!-- Permissions -->
+    <!-- ========================================
+         PERMISSIONS
+         ======================================== -->
+
+    <!-- Internet für API-Kommunikation -->
     <uses-permission android:name="android.permission.INTERNET" />
 
-    <!-- GPS Permissions for Background Geolocation -->
+    <!-- GPS Permissions -->
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+
+    <!-- Background Location (Android 10+) -->
+    <!-- WICHTIG: Muss separat vom Nutzer genehmigt werden -->
     <uses-permission android:name="android.permission.ACCESS_BACKGROUND_LOCATION" />
 
-    <!-- Foreground Service Permission (Android 9+) -->
+    <!-- Foreground Service Permissions (Android 9+) -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+
+    <!-- Foreground Service Type: Location (Android 10+) -->
+    <!-- ERFORDERLICH für GPS-Tracking im Foreground Service -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION" />
 
-    <!-- Wake Lock for keeping CPU active during tracking -->
+    <!-- Wake Lock für CPU-aktiv bei gesperrtem Display -->
     <uses-permission android:name="android.permission.WAKE_LOCK" />
+
+    <!-- Notification Permission (Android 13+) -->
+    <!-- Erforderlich für permanente Tracking-Benachrichtigung -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+
+    <!-- Battery Optimization Exemption (optional, verbessert Zuverlässigkeit) -->
+    <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
+
 </manifest>
