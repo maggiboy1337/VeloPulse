@@ -15,6 +15,7 @@ export interface StoredGPSPoint {
   heartRateBpm?: number;
   cadenceRpm?: number;
   powerWatts?: number;
+  token?: string; // Auth token for offline background sync
   synced: number; // 0 = needs upload, 1 = synced (changed from boolean for IndexedDB compatibility)
   attempts: number; // retry counter
   createdAt: number; // local timestamp for ordering
@@ -257,7 +258,7 @@ class IndexedDBService {
       const store = transaction.objectStore(STORE_NAME);
       const index = store.index('synced');
 
-      const request = index.openCursor(IDBKeyRange.only(true));
+      const request = index.openCursor(IDBKeyRange.only(1));
       let deletedCount = 0;
 
       request.onsuccess = (event) => {
@@ -295,7 +296,7 @@ class IndexedDBService {
       const store = transaction.objectStore(STORE_NAME);
       const index = store.index('activityIdAndSynced');
 
-      const request = index.count(IDBKeyRange.only([activityId, false]));
+      const request = index.count(IDBKeyRange.only([activityId, 0]));
 
       request.onsuccess = () => {
         resolve(request.result);
@@ -321,7 +322,7 @@ class IndexedDBService {
       const store = transaction.objectStore(STORE_NAME);
       const index = store.index('activityIdAndSynced');
 
-      const request = index.openCursor(IDBKeyRange.only([activityId, false]));
+      const request = index.openCursor(IDBKeyRange.only([activityId, 0]));
       let deletedCount = 0;
 
       request.onsuccess = (event) => {

@@ -33,13 +33,13 @@ const startIcon = new L.Icon({
 // Component to center map on current position
 function MapCenter({ position }: { position: [number, number] | null }) {
   const map = useMap();
-  
+
   useEffect(() => {
     if (position) {
       map.setView(position, map.getZoom());
     }
   }, [position, map]);
-  
+
   return null;
 }
 
@@ -224,7 +224,7 @@ const LiveTracking: React.FC = () => {
     const R = 6371000; // Earth's radius in meters
     const dLat = (lat2 - lat1) * Math.PI / 180;
     const dLon = (lon2 - lon1) * Math.PI / 180;
-    const a = 
+    const a =
       Math.sin(dLat / 2) * Math.sin(dLat / 2) +
       Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
       Math.sin(dLon / 2) * Math.sin(dLon / 2);
@@ -421,136 +421,7 @@ const LiveTracking: React.FC = () => {
 
     console.log('Starting GPS tracking for activity:', id);
 
-    // Shared GPS update handler for both native and browser GPS
-    const handleGpsUpdate = async (position: GeolocationPosition) => {
-      const { latitude, longitude, altitude, speed, accuracy } = position.coords;
-      const timestamp = new Date(position.timestamp);
-
-      // Log background status
-      const bgStatus = document.visibilityState === 'hidden' ? '🌑 BACKGROUND' : '👁️ FOREGROUND';
-      console.log(`📍 GPS Update [${bgStatus}]: lat=${latitude.toFixed(6)}, lon=${longitude.toFixed(6)}, acc=${accuracy?.toFixed(1)}m`);
-
-      const newPoint: GPSPoint = {
-        timestamp,
-        latitude,
-        longitude,
-        elevation: altitude || undefined,
-        speed: speed ? speed * 3.6 : undefined, // Convert m/s to km/h
-        accuracy: accuracy || undefined
-      };
-
-      // Calculate distance from last point
-      let addedDistance = 0;
-      if (lastPointRef.current) {
-        addedDistance = calculateDistance(
-          lastPointRef.current.latitude,
-          lastPointRef.current.longitude,
-          latitude,
-          longitude
-        );
-
-        // Only add point if moved at least 5 meters (to avoid GPS drift)
-        if (addedDistance < 5) {
-          return;
-        }
-      }
-
-      // Update state
-      setGpsPoints(prev => [...prev, newPoint]);
-      setCurrentPosition([latitude, longitude]);
-      lastPointRef.current = newPoint;
-
-      // Update statistics
-      const currentSpeed = newPoint.speed || 0;
-      if (currentSpeed > maxSpeedRef.current) {
-        maxSpeedRef.current = currentSpeed;
-      }
-
-      let newDistance = 0;
-      setStats(prev => {
-        newDistance = prev.distance + addedDistance;
-        const duration = Math.floor((Date.now() - startTimeRef.current.getTime()) / 1000);
-        const averageSpeed = duration > 0 ? (newDistance / duration) * 3.6 : 0; // Convert m/s to km/h
-
-        return {
-          distance: newDistance,
-          duration,
-          currentSpeed,
-          averageSpeed,
-          maxSpeed: maxSpeedRef.current
-        };
-      });
-
-      // Send to backend - EVENT-BASED UPLOAD
-      // ⭐ WICHTIG: Upload bei JEDEM GPS-Update (nicht timer-basiert)
-      // Timer funktionieren nicht zuverlässig im Android Background
-      const now = Date.now();
-      const timeSinceLastUpload = now - lastUploadTimeRef.current;
-      const isFirstUpload = lastUploadTimeRef.current === 0;
-      // Spam-Schutz: Minimum 5 Sekunden zwischen Uploads
-      const shouldUpload = isFirstUpload || timeSinceLastUpload >= 5000;
-
-      if (shouldUpload) {
-        lastUploadTimeRef.current = now;
-        const uploadMode = document.visibilityState === 'hidden' ? 'BACKGROUND' : 'FOREGROUND';
-
-        // Type guard: ensure id is defined
-        const activityId = id;
-        if (!activityId) return;
-
-        try {
-          // ⭐ NEU: Nutze Background HTTP Service für Capacitor
-          await backgroundHttpService.sendActivityPoint(
-            activityId,
-            token!, // Token aus AuthContext
-            {
-              timestamp: timestamp.toISOString(),
-              latitude,
-              longitude,
-              elevationMeters: newPoint.elevation,
-              speedKmh: newPoint.speed,
-              accuracyMeters: newPoint.accuracy
-            }
-          );
-          console.log(`✅ GPS point uploaded [${uploadMode}] via Background HTTP (event-based)`);
-
-          // Also send to LiveSession if available
-          const currentLiveSessionId = liveSessionIdRef.current;
-          if (currentLiveSessionId) {
-            try {
-              await backgroundHttpService.sendLiveSnapshot(
-                currentLiveSessionId,
-                token!,
-                {
-                  latitude,
-                  longitude,
-                  gpsAccuracyMeters: newPoint.accuracy,
-                  speedKmh: newPoint.speed,
-                  distanceCompletedMeters: newDistance,
-                  distanceRemainingMeters: undefined,
-                  routeProgressPercent: undefined,
-                  heartRateBpm: undefined,
-                  cadenceRpm: undefined,
-                  powerWatts: undefined
-                }
-              );
-              console.log(`✅ Live snapshot uploaded [${uploadMode}] via Background HTTP (event-based)`);
-            } catch (liveErr) {
-              console.error('⚠️ Failed to send live snapshot:', liveErr);
-            }
-          } else {
-            console.warn('⚠️ No LiveSession ID available yet - snapshot not sent to live map');
-          }
-        } catch (err) {
-          console.error('❌ Background HTTP upload failed:', err);
-          // Keine Offline-Queue mehr (wie gewünscht)
-        }
-      } else {
-        const remainingSeconds = (5 - timeSinceLastUpload / 1000).toFixed(0);
-        console.log(`⏱️ Next upload possible in ${remainingSeconds}s (throttling)`);
-      }
-    };
-
+    // Use the shared GPS update handler for browser tracking too
     const handleError = (error: GeolocationPositionError) => {
       console.error('Browser GPS error:', error);
       let errorMessage = '';
@@ -651,6 +522,24 @@ const LiveTracking: React.FC = () => {
       };
     });
 
+    let queuePointId: number | null = null;
+    const activityId = id;
+    if (!activityId) return;
+
+    try {
+      queuePointId = await gpsQueueService.enqueue(activityId, {
+        timestamp: timestamp.toISOString(),
+        latitude,
+        longitude,
+        elevationMeters: newPoint.elevation,
+        speedKmh: newPoint.speed,
+        accuracyMeters: newPoint.accuracy,
+        token: token!
+      });
+    } catch (enqueueError) {
+      console.warn('⚠️ Failed to queue GPS point for offline sync:', enqueueError);
+    }
+
     // Send to backend (with offline queue fallback)
     // Upload every 30 seconds, or immediately for first GPS point
     const now = Date.now();
@@ -661,10 +550,6 @@ const LiveTracking: React.FC = () => {
     if (shouldUpload) {
       lastUploadTimeRef.current = now;
       const uploadMode = document.visibilityState === 'hidden' ? 'BACKGROUND' : 'FOREGROUND';
-
-      // Type guard: ensure id is defined
-      const activityId = id;
-      if (!activityId) return;
 
       try {
         // ⭐ NEU: Nutze Background HTTP Service für Capacitor
@@ -681,6 +566,10 @@ const LiveTracking: React.FC = () => {
           }
         );
         console.log(`✅ GPS point uploaded [${uploadMode}] via Background HTTP`);
+
+        if (queuePointId !== null) {
+          await gpsQueueService.markPointAsSynced(queuePointId);
+        }
 
         // Also send to LiveSession if available
         const currentLiveSessionId = liveSessionIdRef.current;
@@ -711,7 +600,6 @@ const LiveTracking: React.FC = () => {
         }
       } catch (err) {
         console.error('❌ Background HTTP upload failed:', err);
-        // Keine Offline-Queue mehr (wie gewünscht)
       }
     } else {
       const remainingSeconds = (30 - timeSinceLastUpload / 1000).toFixed(0);
@@ -784,7 +672,7 @@ const LiveTracking: React.FC = () => {
   // Handle resume
   const handleResume = async () => {
     if (!id) return;
-    
+
     try {
       await resumeActivity(id);
       setIsTracking(true);
@@ -871,8 +759,8 @@ const LiveTracking: React.FC = () => {
         <div className="error-banner">
           {error}
           {gpsPermissionDenied && (
-            <button 
-              className="btn-retry-gps" 
+            <button
+              className="btn-retry-gps"
               onClick={handleRequestGpsPermission}
               style={{ marginLeft: '10px', padding: '5px 10px', fontSize: '0.9em' }}
             >
@@ -894,30 +782,30 @@ const LiveTracking: React.FC = () => {
               url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
               attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
             />
-            
+
             {/* GPS Track */}
             {polylinePoints.length > 0 && (
-              <Polyline 
-                positions={polylinePoints} 
-                color="#667eea" 
-                weight={4} 
-                opacity={0.8} 
+              <Polyline
+                positions={polylinePoints}
+                color="#667eea"
+                weight={4}
+                opacity={0.8}
               />
             )}
-            
+
             {/* Start marker */}
             {startPoint && (
-              <Marker 
-                position={[startPoint.latitude, startPoint.longitude]} 
+              <Marker
+                position={[startPoint.latitude, startPoint.longitude]}
                 icon={startIcon}
               />
             )}
-            
+
             {/* Current position marker */}
             {currentPosition && (
               <Marker position={currentPosition} icon={currentIcon} />
             )}
-            
+
             {/* Center map on current position */}
             <MapCenter position={currentPosition} />
           </MapContainer>
@@ -935,27 +823,27 @@ const LiveTracking: React.FC = () => {
           <div className="stat-label">Distanz</div>
           <div className="stat-value">{formatDistance(stats.distance)}</div>
         </div>
-        
+
         <div className="stat-card">
           <div className="stat-label">Zeit</div>
           <div className="stat-value">{formatDuration(stats.duration)}</div>
         </div>
-        
+
         <div className="stat-card">
           <div className="stat-label">Aktuell</div>
           <div className="stat-value">{stats.currentSpeed.toFixed(1)} km/h</div>
         </div>
-        
+
         <div className="stat-card">
           <div className="stat-label">Ø Tempo</div>
           <div className="stat-value">{stats.averageSpeed.toFixed(1)} km/h</div>
         </div>
-        
+
         <div className="stat-card">
           <div className="stat-label">Max</div>
           <div className="stat-value">{stats.maxSpeed.toFixed(1)} km/h</div>
         </div>
-        
+
         <div className="stat-card">
           <div className="stat-label">Punkte</div>
           <div className="stat-value">{gpsPoints.length}</div>
@@ -973,7 +861,7 @@ const LiveTracking: React.FC = () => {
             <span>▶</span> Fortsetzen
           </button>
         )}
-        
+
         <button className="btn-stop" onClick={handleStop}>
           <span>⏹</span> Beenden
         </button>

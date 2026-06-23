@@ -87,10 +87,11 @@ class GPSQueueService {
       heartRateBpm?: number;
       cadenceRpm?: number;
       powerWatts?: number;
+      token?: string;
     }
-  ): Promise<void> {
+  ): Promise<number> {
     try {
-      await indexedDBService.addGPSPoint({
+      const id = await indexedDBService.addGPSPoint({
         activityId,
         ...point
       });
@@ -99,15 +100,33 @@ class GPSQueueService {
       const count = await indexedDBService.getUnsyncedCount(activityId);
       this.updateSyncStatus({ unsyncedCount: count });
 
-      console.log('GPS point queued for offline sync');
+      console.log('GPS point queued for offline sync (id:', id, ')');
 
       // ========================================
       // PHASE 3: Register Background Sync
       // ========================================
       // Try to register background sync for offline uploads
       await serviceWorkerService.registerBackgroundSync('sync-gps-points');
+
+      return id;
     } catch (error) {
       console.error('Failed to queue GPS point:', error);
+      throw error;
+    }
+  }
+
+  async markPointAsSynced(pointId: number): Promise<void> {
+    try {
+      await indexedDBService.markAsSynced(pointId);
+
+      if (this.currentActivityId) {
+        const count = await indexedDBService.getUnsyncedCount(this.currentActivityId);
+        this.updateSyncStatus({ unsyncedCount: count });
+      }
+
+      console.log('GPS queue point marked as synced:', pointId);
+    } catch (error) {
+      console.error('Failed to mark queued GPS point as synced:', error);
       throw error;
     }
   }
