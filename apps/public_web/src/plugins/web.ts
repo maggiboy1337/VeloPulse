@@ -44,7 +44,7 @@ export class TrackingServiceWeb extends WebPlugin implements TrackingServicePlug
     };
   }
 
-  async checkPermissions(): Promise<PermissionStatus> {
+  async checkTrackingPermissions(): Promise<PermissionStatus> {
     // Im Browser keine nativen Permissions
     return {
       location: false,
@@ -53,10 +53,10 @@ export class TrackingServiceWeb extends WebPlugin implements TrackingServicePlug
     };
   }
 
-  async requestPermissions(): Promise<PermissionStatus> {
-    console.warn('⚠️ TrackingService.requestPermissions() not available in web browser');
+  async requestTrackingPermissions(): Promise<PermissionStatus> {
+    console.warn('⚠️ TrackingService.requestTrackingPermissions() not available in web browser');
     console.warn('   Use browser geolocation API instead');
-    
+
     return {
       location: false,
       backgroundLocation: false,

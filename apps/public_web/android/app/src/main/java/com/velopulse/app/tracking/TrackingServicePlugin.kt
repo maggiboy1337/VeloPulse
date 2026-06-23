@@ -47,9 +47,9 @@ class TrackingServicePlugin : Plugin() {
                 putExtra(TrackingService.EXTRA_ACTIVITY_ID, activityId)
                 putExtra(TrackingService.EXTRA_AUTH_TOKEN, authToken)
                 putExtra(TrackingService.EXTRA_API_URL, apiUrl)
-                putExtra(TrackingService.EXTRA_UPDATE_INTERVAL, updateInterval.toLong())
-                putExtra(TrackingService.EXTRA_DISTANCE_FILTER, distanceFilter.toFloat())
-                
+                putExtra(TrackingService.EXTRA_UPDATE_INTERVAL, (updateInterval ?: 5000).toLong())
+                putExtra(TrackingService.EXTRA_DISTANCE_FILTER, (distanceFilter ?: 5).toFloat())
+
                 if (!liveSessionId.isNullOrEmpty()) {
                     putExtra(TrackingService.EXTRA_LIVE_SESSION_ID, liveSessionId)
                 }
@@ -163,21 +163,21 @@ class TrackingServicePlugin : Plugin() {
      * Prüft ob erforderliche Berechtigungen vorhanden sind
      */
     @PluginMethod
-    fun checkPermissions(call: PluginCall) {
+    fun checkTrackingPermissions(call: PluginCall) {
         try {
             val ret = com.getcapacitor.JSObject()
-            
+
             val hasLocation = hasPermission(android.Manifest.permission.ACCESS_FINE_LOCATION)
             val hasBackgroundLocation = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
                 hasPermission(android.Manifest.permission.ACCESS_BACKGROUND_LOCATION)
             } else {
                 true // Not required on Android < 10
             }
-            
+
             ret.put("location", hasLocation)
             ret.put("backgroundLocation", hasBackgroundLocation)
             ret.put("allGranted", hasLocation && hasBackgroundLocation)
-            
+
             call.resolve(ret)
         } catch (e: Exception) {
             call.reject("Failed to check permissions: ${e.message}", e)
@@ -188,13 +188,13 @@ class TrackingServicePlugin : Plugin() {
      * Fordert erforderliche Berechtigungen an
      */
     @PluginMethod
-    fun requestPermissions(call: PluginCall) {
+    fun requestTrackingPermissions(call: PluginCall) {
         try {
             val permissions = mutableListOf(
                 android.Manifest.permission.ACCESS_FINE_LOCATION,
                 android.Manifest.permission.ACCESS_COARSE_LOCATION
             )
-            
+
             // Android 10+ requires separate background location permission
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
                 permissions.add(android.Manifest.permission.ACCESS_BACKGROUND_LOCATION)

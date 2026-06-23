@@ -57,7 +57,7 @@ class NativeTrackingService {
     }
 
     try {
-      return await TrackingService.checkPermissions();
+      return await TrackingService.checkTrackingPermissions();
     } catch (error) {
       console.error('❌ Failed to check permissions:', error);
       throw error;
@@ -79,7 +79,7 @@ class NativeTrackingService {
 
     try {
       console.log('📋 Requesting tracking permissions...');
-      const result = await TrackingService.requestPermissions();
+      const result = await TrackingService.requestTrackingPermissions();
       
       if (result.allGranted) {
         console.log('✅ All permissions granted');

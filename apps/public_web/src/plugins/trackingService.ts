@@ -56,14 +56,14 @@ export interface TrackingServicePlugin {
    * 
    * @returns Promise mit Permission-Status
    */
-  checkPermissions(): Promise<PermissionStatus>;
+  checkTrackingPermissions(): Promise<PermissionStatus>;
 
   /**
    * Fordert erforderliche Berechtigungen an
    * 
    * @returns Promise mit Permission-Status nach Request
    */
-  requestPermissions(): Promise<PermissionStatus>;
+  requestTrackingPermissions(): Promise<PermissionStatus>;
 }
 
 /**
