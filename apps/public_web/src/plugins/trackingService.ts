@@ -100,8 +100,6 @@ export interface PermissionStatus {
 }
 
 // Plugin registrieren (nur Android, kein Web-Fallback)
-import { registerPlugin } from '@capacitor/core';
-
 const TrackingService = registerPlugin<TrackingServicePlugin>('TrackingServicePlugin');
 
 export default TrackingService;
