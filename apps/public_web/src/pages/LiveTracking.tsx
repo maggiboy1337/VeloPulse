@@ -363,7 +363,7 @@ const LiveTracking: React.FC = () => {
 
         // Update UI with native service data
         if (status.lastLocation) {
-          const { latitude, longitude, speed, accuracy } = status.lastLocation;
+          const { latitude, longitude, speed } = status.lastLocation;
 
           setCurrentPosition([latitude, longitude]);
 
