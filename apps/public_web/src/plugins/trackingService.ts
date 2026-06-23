@@ -99,9 +99,9 @@ export interface PermissionStatus {
   allGranted: boolean;
 }
 
-// Plugin über Capacitor.Plugins aufrufen (für lokale Plugins)
-import { Capacitor } from '@capacitor/core';
+// Plugin registrieren (nur Android, kein Web-Fallback)
+import { registerPlugin } from '@capacitor/core';
 
-const TrackingService = Capacitor.Plugins.TrackingServicePlugin as TrackingServicePlugin;
+const TrackingService = registerPlugin<TrackingServicePlugin>('TrackingServicePlugin');
 
 export default TrackingService;
