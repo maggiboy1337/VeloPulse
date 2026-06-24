@@ -13,9 +13,16 @@ class MainActivity : BridgeActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        // Plugin wird automatisch über @CapacitorPlugin Annotation erkannt
-        registerPlugin(ForegroundTrackingPlugin::class.java)
+        // Plugin explizit registrieren
+        android.util.Log.i("MainActivity", "🔧 Registering ForegroundTrackingPlugin...")
 
-        android.util.Log.i("MainActivity", "✅ VeloPulse initialized with ForegroundTracking")
+        try {
+            registerPlugin(ForegroundTrackingPlugin::class.java)
+            android.util.Log.i("MainActivity", "✅ ForegroundTrackingPlugin registered successfully")
+        } catch (e: Exception) {
+            android.util.Log.e("MainActivity", "❌ Failed to register plugin", e)
+        }
+
+        android.util.Log.i("MainActivity", "✅ VeloPulse initialized - Build v1.0.7")
     }
 }
