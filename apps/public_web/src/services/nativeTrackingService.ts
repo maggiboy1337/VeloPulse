@@ -16,6 +16,7 @@ class NativeTrackingService {
 
     if (this.isAndroid) {
       console.log('✅ Native Foreground Service available (Android)');
+      console.log('🔢 BUILD VERSION: 2024-06-24-v1.0.7-PLUGIN-FIX');
     } else {
       console.log('ℹ️ Running in browser - native service not available');
     }
@@ -46,10 +47,12 @@ class NativeTrackingService {
       console.log('✅ Foreground Service started');
       console.log('   GPS tracking active (works with locked display)');
       console.log('   Permanent notification visible');
+      console.log('🔢 Plugin call successful - Build v1.0.7');
 
       return true;
     } catch (error) {
       console.error('❌ Failed to start foreground service:', error);
+      console.error('🔢 Plugin call failed - Build v1.0.7');
       throw error;
     }
   }
