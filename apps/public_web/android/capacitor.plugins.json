@@ -2,7 +2,7 @@
   "plugins": {
     "ForegroundTracking": {
       "android": {
-        "src": "com.velopulse.app.ForegroundTrackingPlugin"
+        "src": "com.velopulse.app.plugins.ForegroundTrackingPlugin"
       }
     }
   }

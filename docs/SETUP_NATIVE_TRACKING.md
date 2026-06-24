@@ -228,6 +228,38 @@ npx cap run android
    adb logcat | grep "TrackingServicePlugin"
    ```
 
+### Problem: "ForegroundTracking plugin is not implemented on android"
+
+**Ursache:** Plugin-Registrierung in `capacitor.plugins.json` ist falsch.
+
+**Lösung:**
+1. Prüfe `apps/public_web/android/capacitor.plugins.json`:
+   ```json
+   {
+     "plugins": {
+       "ForegroundTracking": {
+         "android": {
+           "src": "com.velopulse.app.plugins.ForegroundTrackingPlugin"
+         }
+       }
+     }
+   }
+   ```
+   ⚠️ Wichtig: Der Pfad muss `com.velopulse.app.plugins.ForegroundTrackingPlugin` sein (nicht `com.velopulse.app.ForegroundTrackingPlugin`)
+
+2. Nach der Korrektur:
+   ```bash
+   cd apps/public_web
+   npx cap sync android
+   ./gradlew clean
+   ./gradlew build
+   ```
+
+3. App neu installieren:
+   ```bash
+   npx cap run android
+   ```
+
 ## 📦 Production Build
 
 ### Signed APK erstellen
