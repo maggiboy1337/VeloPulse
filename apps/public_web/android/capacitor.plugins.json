@@ -1,0 +1,9 @@
+{
+  "plugins": {
+    "ForegroundTracking": {
+      "android": {
+        "src": "com.velopulse.app.ForegroundTrackingPlugin"
+      }
+    }
+  }
+}

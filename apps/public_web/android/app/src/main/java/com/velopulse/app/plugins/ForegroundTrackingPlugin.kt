@@ -1,4 +1,4 @@
-package com.velopulse.app
+package com.velopulse.app.plugins
 
 import android.content.Intent
 import android.os.Build

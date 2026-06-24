@@ -2,6 +2,7 @@ package com.velopulse.app
 
 import android.os.Bundle
 import com.getcapacitor.BridgeActivity
+import com.velopulse.app.plugins.ForegroundTrackingPlugin
 
 /**
  * MainActivity für VeloPulse
