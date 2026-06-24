@@ -337,8 +337,7 @@ const LiveTracking: React.FC = () => {
 
   // ========================================
   // ⭐ NATIVE ANDROID FOREGROUND SERVICE ⭐
-  // Verwendet nativen Service für GPS + Uploads
-  // Fallback auf capacitorGpsService/Browser wenn nicht verfügbar
+  // Startet nativen Service der GPS + Uploads übernimmt
   // ========================================
   useEffect(() => {
     if (!isTracking || !id || !token) {
@@ -349,44 +348,23 @@ const LiveTracking: React.FC = () => {
     const hasNativeService = nativeTrackingService.isAvailable();
 
     if (hasNativeService) {
-      console.log('🚀 Using NATIVE ANDROID FOREGROUND SERVICE for GPS tracking');
-      console.log('   ✅ GPS works with locked display');
-      console.log('   ✅ Data uploads work in background');
-      console.log('   ✅ Service cannot be killed by system');
+      console.log('🚀 Starting NATIVE ANDROID FOREGROUND SERVICE');
+      console.log('   ✅ GPS tracking works with locked display');
+      console.log('   ✅ Permanent notification visible');
+      console.log('   ✅ Service protected from system kill');
 
       // Start native service
       startNativeForegroundService();
-
-      // Subscribe to status updates
-      const unsubscribe = nativeTrackingService.subscribe((status) => {
-        console.log('📊 Native Service Status:', status);
-
-        // Update UI with native service data
-        if (status.lastLocation) {
-          const { latitude, longitude, speed } = status.lastLocation;
-
-          setCurrentPosition([latitude, longitude]);
-
-          // Update stats
-          setStats(prev => ({
-            ...prev,
-            distance: status.totalDistance,
-            currentSpeed: speed || 0
-          }));
-        }
-      });
 
       return () => {
         console.log('🛑 Stopping native foreground service');
         nativeTrackingService.stopTracking().catch(err => {
           console.error('Error stopping native service:', err);
         });
-        unsubscribe();
       };
     } else {
-      console.log('ℹ️ Native Foreground Service not available');
-      console.log('   Falling back to capacitorGpsService or browser GPS');
-      // Fallback wird durch den nächsten useEffect behandelt
+      console.log('ℹ️ Native Service not available (browser mode)');
+      console.log('   Using fallback GPS tracking');
     }
   }, [isTracking, id, token]);
 
