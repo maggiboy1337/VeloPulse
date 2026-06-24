@@ -419,9 +419,7 @@ const LiveTracking: React.FC = () => {
       const started = await nativeTrackingService.startTracking({
         activityId: id,
         authToken: token,
-        liveSessionId: liveSessionId || undefined,
-        updateIntervalMs: 5000, // 5 seconds
-        distanceFilterMeters: 5 // 5 meters
+        liveSessionId: liveSessionId || undefined
       });
 
       if (started) {
